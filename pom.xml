@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
 
     <name>Jogo Snake - Portfolio Java (com testes)</name>
-    <description>Branch de desenvolvimento: núcleo sem Swing, borda mata ou dá a volta. Esta é a branch com os testes (JUnit + Surefire + JaCoCo); a main carrega só o jogo</description>
+    <description>Branch de desenvolvimento do Snake do portfolio: cobra em grade 20x20, borda que mata ou dá a volta, dois poderes, quatro skins e recorde gravado em disco. Esta e a branch com os 85 testes (JUnit + Surefire + JaCoCo); a main carrega so o jogo, sem src/test</description>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
