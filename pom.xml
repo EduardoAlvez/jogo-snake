@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
 
     <name>Jogo Snake - Portfolio Java</name>
-    <description>Pong do portfolio: núcleo sem Swing, skins por código e 100% testado</description>
+    <description>Snake do portfolio: núcleo sem Swing, borda mata ou dá a volta, skins por código com sprites opcionais</description>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
