@@ -29,6 +29,25 @@ tools/
 target/                                   # Saída do build (não versionada)
 ```
 
+## Branches
+
+Mesma convenção do Pong, e mais limpa:
+
+| Branch | Papel | Versão | Testes |
+|---|---|---|---|
+| `testes-jogo-snake` | desenvolvimento | `1.0-SNAPSHOT` | pom com JUnit + Surefire + JaCoCo, e os 48 testes em `src/test` |
+| `main` | release | a versionar na release | **sem** `src/test` e sem JUnit, Surefire ou JaCoCo |
+
+A diferença para o Pong é deliberada. Lá a `main` também guarda `src/test` e a
+dependência do JUnit, porque a `main` foi criada a partir da branch de testes na
+hora da release (`testes-jogo-pong` é ancestral de `main`, e a única diferença
+entre as duas são três arquivos de documentação). O resultado ficou oposto ao
+que o nome da branch sugere. Aqui a `main` carrega só o jogo.
+
+O histórico dos 4 primeiros commits ainda contém os arquivos de teste, porque
+eles foram escritos antes de a separação existir. A partir do commit que criou a
+`main`, nenhum arquivo de teste entra nela.
+
 ## Decisões já fechadas
 
 - **1P apenas.** Dois jogadores ficam para depois; o Pong já cobriu o caso de
