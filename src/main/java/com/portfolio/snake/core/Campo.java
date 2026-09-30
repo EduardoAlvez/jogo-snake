@@ -97,6 +97,24 @@ public final class Campo {
     }
 
     /**
+     * Dobra a coordenada para dentro do campo, sempre.
+     *
+     * <p>É o que {@link #traduzir} só faz no modo {@link Borda#WRAP}. Existe
+     * separado porque o poder do fantasma precisa dar a volta numa parede que,
+     * no resto da partida, mata: a cabeça não pode ficar fora da grade, onde o
+     * desenho não saberia onde colocá-la, e a cobra também não pode simplesmente
+     * ignorar a parede e sumir.
+     *
+     * @param x     coluna desejada, possivelmente fora do campo
+     * @param y     linha desejada, possivelmente fora do campo
+     * @param saida array de tamanho 2 que recebe {@code [x, y]} dobrados
+     */
+    public void dobrarParaDentro(int x, int y, int[] saida) {
+        saida[0] = ((x % largura) + largura) % largura;
+        saida[1] = ((y % altura) + altura) % altura;
+    }
+
+    /**
      * Verifica se a parede mata nesta configuração, ou seja, se a borda mais
      * próxima está a menos de um passo.
      *

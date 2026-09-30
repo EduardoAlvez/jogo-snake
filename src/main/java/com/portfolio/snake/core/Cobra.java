@@ -43,8 +43,23 @@ public final class Cobra {
      */
     public Cobra(Campo campo, int comprimento) {
         this.campo = campo;
-        int cabecaX = campo.getLargura() / 2;
+        if (comprimento < 2) {
+            throw new IllegalArgumentException(
+                    "A cobra precisa de ao menos 2 segmentos, veio " + comprimento);
+        }
+        if (comprimento > campo.getLargura()) {
+            // Deitada e apontando para a direita, a cobra ocupa `comprimento`
+            // colunas. Sem esta checagem o corpo sairia pela coluna 0 em
+            // coordenadas negativas e a cobra nasceria dentro da parede.
+            throw new IllegalArgumentException("A cobra de " + comprimento
+                    + " segmentos não cabe na largura " + campo.getLargura()
+                    + " do campo");
+        }
         int cabecaY = campo.getAltura() / 2;
+        // A cabeça fica no meio quando há espaço e desloca para a direita
+        // quando a cobra é comprida demais para caber a partir do meio.
+        int cabecaX = Math.min(campo.getLargura() - 1,
+                Math.max(campo.getLargura() / 2, comprimento - 1));
         for (int i = 0; i < comprimento; i++) {
             corpo.add(new Celula(cabecaX - i, cabecaY));
         }
@@ -111,6 +126,31 @@ public final class Cobra {
         return fila.size();
     }
 
+    /**
+     * Tira da fila a próxima direção, ou devolve a atual se a fila estiver vazia,
+     * e passa a valer como direção da cobra.
+     *
+     * <p>Atualizar o campo aqui é essencial. A direção enfileirada é a direção
+     * <em>deste</em> passo, e se o campo só fosse atualizado no passo seguinte a
+     * cobra voltaria para a direção antiga: o jogador viraria, a cabeça andaria
+     * um passo para o lado pedido, e no passo seguinte a cobra voltaria a andar
+     * para onde ia antes. A virada parecia funcionar por um tique e era
+     * descartada no seguinte.
+     *
+     * <p>Separado de {@link #avancar} porque quem decide o destino é o
+     * {@link JogoSnake}, que precisa aplicar a regra de borda <b>antes</b> de a
+     * cabeça se mover — a direção tem de ser conhecida antes do passo, e não
+     * durante ele.
+     *
+     * @return a direção deste passo
+     */
+    public Direcao consumirDirecao() {
+        if (!fila.isEmpty()) {
+            direcao = fila.removeFirst();
+        }
+        return direcao;
+    }
+
     public Direcao getDirecao() {
         return direcao;
     }
@@ -154,10 +194,39 @@ public final class Cobra {
             direcao = desejada;
         }
         Celula cabeca = corpo.get(0);
-        corpo.add(0, new Celula(cabeca.getX() + direcao.dx(), cabeca.getY() + direcao.dy()));
-        // Comer é o que faz a cobra crescer: a cabeça entra e a cauda não sai,
-        // então o corpo ganha um segmento. Sem comer, a cauda sai e o
-        // comprimento se mantém. Este é o único mecanismo de crescimento.
+        return inserirCabeca(new Celula(cabeca.getX() + direcao.dx(),
+                cabeca.getY() + direcao.dy()), comeu);
+    }
+
+    /**
+     * Move a cabeça para uma célula já calculada, consumindo a fila de direções.
+     *
+     * <p>Existe porque a regra de borda pertence ao {@link Campo}, não à cobra.
+     * Com {@link Campo.Borda#WRAP} a cabeça que sai pela direita tem de aparecer
+     * pela esquerda, e essa correção é feita por {@link Campo#traduzir} — mas
+     * {@link #moverPara(Direcao, boolean)} calcula o destino sozinho e ignora a
+     * correção. Passando o destino pronto, a cobra obedece à regra sem conhecer
+     * o tabuleiro, e o modo wrap funciona sem código especial.
+     *
+     * @param destino célula de destino, já dentro do campo
+     * @param comeu   se a cabeça cameu neste passo
+     * @return {@code true} se houve crescimento
+     */
+    public boolean avancarPara(Celula destino, boolean comeu) {
+        return inserirCabeca(destino, comeu);
+    }
+
+    /**
+     * Insere a cabeça e tira a cauda, a menos que a cobra tenha comido.
+     *
+     * <p>Comer é o que faz a cobra crescer: a cabeça entra e a cauda não sai,
+     * então o corpo ganha um segmento. Sem comer, a cauda sai e o comprimento
+     * se mantém. Este é o único mecanismo de crescimento, e a ordem
+     * inseriu-antes-de-remover é o que o {@link JogoSnake} depende para checar
+     * colisão sobre um corpo consistente com a regra.
+     */
+    private boolean inserirCabeca(Celula destino, boolean comeu) {
+        corpo.add(0, destino);
         if (!comeu) {
             corpo.remove(corpo.size() - 1);
         }
@@ -170,8 +239,9 @@ public final class Cobra {
      * @return {@code true} se houve crescimento neste passo
      */
     public boolean avancar(boolean comeu) {
-        Direcao proxima = fila.isEmpty() ? null : fila.removeFirst();
-        return moverPara(proxima, comeu);
+        Direcao d = consumirDirecao();
+        Celula c = corpo.get(0);
+        return inserirCabeca(new Celula(c.getX() + d.dx(), c.getY() + d.dy()), comeu);
     }
 
     /**
