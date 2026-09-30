@@ -53,16 +53,15 @@ target/                                   # Saída do build (não versionada)
 |---|-----------|--------|--------|----------|
 | 1 | **Alta** | ui | **`TelaSnake` não existe** | O `pom.xml` declara `com.portfolio.snake.ui.TelaSnake` como classe principal, e ela **não foi criada**. Sem ela o `mvn package` não gera executável e `java -jar` falha. **A fazer**: janela, tabuleiro, HUD (pontos, recorde, nível, comprimento), pausa, briefing com escolha de borda e dificuldade, tela de fim com "novo recorde", e o laço de tempo que chama `JogoSnake.passo(dt)` no intervalo de `intervaloMs()` |
 | 2 | **Alta** | build | **`logo.ico` e `tools/GerarLogo.java` ausentes** | O launch4j aponta para `src/main/resources/logo.ico`, que não existe, então o `package` falha na hora de montar o `.exe`. Falta o gerador dos PNGs por resolução e o `.ico` |
-| 3 | **Alta** | core | **`JogoSnake` não tem nenhum teste** | É a classe que guarda a **ordem dos passos**, que é a regra inteira do jogo: relógio dos poderes → direção e destino com a borda já corrigida → parede → mover (a cauda sai aqui) → colisão → pontos e nível → resorts. Um passo fora de ordem não dá exceção, o jogo só se comporta errado. **A fazer**: comer dá 10 pontos e cresce 1; parede mata em `MORRE` e dá a volta em `WRAP`; colidir com o próprio corpo termina a partida; cabeça na célula que a cauda liberou **não** mata; campo lotado dá vitória e **não trava em laço infinito**; `x2` dobra só enquanto ativo; fantasma segura a parede em `MORRE` e é inútil em `WRAP`; dois fantasmas renovam 5 s em vez de empilhar 10 s; `reiniciar` limpa a fila de direções; a semente fixada torna o sorteio determinístico |
+| 3 | Média | core | **`JogoSnake` testado só nas regras básicas** | Os 32 testes de `JogoSnakeTest` cobrem comer, as duas bordas, colidir com o corpo, a cabeça na célula liberada pela cauda, campo lotado, os dois poderes com renovação, pausa, reinício e a fila de direções. **Falta**: (a) a semente fixa é usada, mas nenhum teste roda a partida inteira por muitos passos para caçar comportamento intermitente; (b) nenhum teste cobre `intervaloMs` nas três dificuldades; (c) o recorde nunca é gravado em disco nos testes, porque `RegistroDeRecordes` escreve em `~` de verdade — arrisca sujar a máquina e deixa o teste dependente do ambiente |
 | 4 | **Alta** | ui | **Testes de UI desde o começo** | Lição direta do Pong: o defeito dos badges **não existia em nenhum teste** porque `TelaPong` não era referenciada por nenhum, e ele só apareceu por leitura de código. Aqui `ui` está vazia, então ainda não há o que testar — mas nenhum item de UI deve ser marcado como pronto sem teste de layout que **falhe** quando algo sai de `[0, largura]` ou `[0, altura]`: cards de poder, HUD, cabazão de fim de partida e o desenho da cobra com a cabeça na borda |
 | 5 | Média | skin | As 4 skins | `Skin` + `CatalogoSkins` + `SkinVetorial` (a base, sempre presente) + `SkinSprites` (14 tiles: 4 cabeças, 4 rabos, 2 corpos retos, 4 cantos, com fallback vetorial se o PNG faltar). `Clássico`, `Chapéu`, `Colorida` e `Dedinho`, com persistência em `~/.jogo-snake-skin.properties` e troca sem reiniciar a partida |
 | 6 | Média | audio | Sons e o silêncio no executável | Regressão do Pong: o áudio era silencioso no `.exe` e só apareceu em teste que **toca de dentro de um jar**, com `BufferedInputStream` desde a primeira linha. Comer, poder, bater na parede e fim de partida |
 | 7 | Média | fx | Partículas | Comer comida, coletar poder, bater na parede. Reaproveitar o desenho do Pong |
 | 8 | Média | — | **README** | Não existe. Tem que descrever o que o Snake **tem**, e não o que ele vai ter, com o mesmo cuidado do Pong depois do badge: nada de "validado por smoke test" sem o teste |
-| 9 | Média | build | Descrição do `pom.xml` | Diz `Pong do portfolio` e `Branch de testes` no `main`. Corrigir e colocar o nome do jogo certo |
-| 10 | Baixa | ui | Segundo jogador | **Adiado pelo usuário.** A entrada de dois jogadores no mesmo teclado é a parte chata de interface |
-| 11 | Baixa | core | Obstáculos | Paredes internas e blocos fixos. Muda a ordem da checagem de colisão e, portanto, os testes do item 3 |
-| 12 | Baixa | core | Mais poderes | Câmera lenta, ímã, encolher. Cada um é um efeito no `JogoSnake` e mais um par de casos na regra de simultâneo/reversão |
+| 9 | Baixa | ui | Segundo jogador | **Adiado pelo usuário.** A entrada de dois jogadores no mesmo teclado é a parte chata de interface |
+| 10 | Baixa | core | Obstáculos | Paredes internas e blocos fixos. Muda a ordem da checagem de colisão e, portanto, os testes do item 3 |
+| 11 | Baixa | core | Mais poderes | Câmera lenta, ímã, encolher. Cada um é um efeito no `JogoSnake` e mais um par de casos na regra de simultâneo/reversão |
 
 ## Validação visual
 
@@ -79,9 +78,10 @@ da janela.
 
 ## Fazendo (Doing)
 
-Núcleo em escrita: `Comida`, `Poder`, `JogoSnake` e `RegistroDeRecordes`
-compilam, e **`JogoSnake` está sem teste nenhum** (backlog 3). A ordem dos passos
-está escrita e comentada no método, mas comentário não é teste.
+Núcleo completo e verde: 48 testes. O próximo passo do caminho crítico é o
+backlog 1 e 2 — `TelaSnake` e o `logo.ico` — porque sem eles o jogo não abre e
+o `package` falha. O backlog 4 (testes de UI) tem de andar junto com o 1, e não
+depois.
 
 ## Feito (Done)
 
@@ -124,15 +124,61 @@ está escrita e comentada no método, mas comentário não é teste.
 - **Dois defeitos do construtor corrigidos**: a cobra aceitasse comprimento
   menor que 2, e deitada para a direita numa grade estreita o corpo saía em
   coordenada negativa e a cobra nascia dentro da parede
+- **`Comida`** — posição e valor, mais `sortearLivre` com número de tentativas
+  limitado, o que é o terceiro erro clássico do Snake resolvido
+- **`Poder`** — `FANTASMA` (5 s) e `PONTOS_X2` (10 s) com `Ativo`, relógio e
+  renovação
+- **`RegistroDeRecordes`** — um inteiro em `~/.jogo-snake-recorde`; arquivo
+  corrompido devolve 0 em vez de impedir o jogo de abrir
+- **`JogoSnake`** — as regras e a **ordem dos passos**, escrita e numerada no
+  método: relógio dos poderes → direção e destino com a borda já corrigida →
+  parede → mover (a cauda sai aqui) → vitória → colisão → pontos e nível →
+  resorts. Dificuldade, pausa, briefing, reinício e recorde
+- **`JogoSnakeTest`: 32 testes, todos verdes** — comer, `MORRE` mata e `WRAP` dá
+  a volta, o corpo também dá a volta, comer na parede oposta no wrap, colidir
+  com o corpo, cabeça na célula liberada, campo lotado com `timeout` de 2 s, os
+  dois poderes com renovação em vez de empilhar, o fantasma segurando a parede
+  e sendo inútil no wrap, pausa, reinício e a fila de direções
+- **A vitória é checada antes de qualquer outra regra**, inclusive da parede
+- **`Campo.dobrarParaDentro`** — dobra a coordenada sempre, para o fantasma
+  segurar a parede sem tirar a cabeça da grade
+
+### Bugs reais que os testes acharam (e que a leitura não pegaria)
+
+1. **A cobra ignorava as viradas do jogador.** `consumirDirecao()` e
+   `avancarPara()` puxavam da fila. Com uma virada enfileirada o jogo funcionava,
+   porque a segunda leitura caía no caso "fila vazia". Com duas viradas no mesmo
+   tique, a segunda leitura consumia a virada seguinte: a cabeça andava para a
+   primeira direção e o campo `direcao` ficava com a segunda. O jogador virava, a
+   cobra obedecia por um tique e voltava a andar para onde ia antes — e
+   apertar duas teclas seguidas ainda estourava `NoSuchElementException`.
+   Verificado por mutação: reintroduzir o segundo consumo derruba 4 testes.
+2. **O fantasma tirava a cabeça do campo.** `Campo.traduzir` só dobra a
+   coordenada no modo `WRAP`, então com o fantasma segurando uma parede que mata
+   a cabeça saía da grade — e o próprio javadoc dizia que ela daria a volta.
+3. **A partida travava com o campo lotado.** A vitória era checada dentro do
+   `if (comeu)`, mas um campo lotado não tem onde pôr comida, então o jogador
+   preenchia a grade e o jogo nunca declarava vitória. Pior: checada depois da
+   parede, a cabeça encostada na parede morria no instante em que ganhou.
+4. **Dois testes de colisão dependiam do sorteio da comida.** A cobra comia por
+   acaso, o corpo crescia, a cauda não saía e a colisão acontecia em outro lugar:
+   passavam ou falhavam por causa da semente, e não da regra. A comida agora é
+   posta fora do caminho nos dois.
+
+O padrão é o mesmo do Pong: **a ordem das regras não dá exceção, ela só faz o
+jogo se comportar errado**. Três dos quatro bugs acima passaram pelo código
+parecendo certo.
 
 ## Números
 
 | | Pong | Snake |
 |---|---|---|
-| Testes | 149 | **16** |
+| Testes | 149 | **48** |
 | Testes em `ui` | 0 | 0 (a `ui` não existe) |
-| Camadas sem teste | — | `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder`, `JogoSnake`, `RegistroDeRecordes` |
+| Classes de `core` sem teste | — | `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder`, `RegistroDeRecordes` |
+| Bugs reais achados por teste | 1 (badge fora do campo, achado por leitura) | **4** (todos achados por teste) |
 | Linha de comando | — | `/c/Users/dudu2/.m2/wrapper/dists/apache-maven-3.9.11/d6d3cbd4012d4c1d840e93277aca316c/bin/mvn` (o `mvn` não está no `PATH`) |
 
-O Snake está bem **atrás** do Pong em cobertura, e isso é o número que manda aqui:
-`JogoSnake` concentra toda a ordem das regras e ainda não tem um teste só.
+O Snake ainda está **atrás** do Pong em cobertura: `Campo`, `Direcao`, `Celula`,
+`Forma`, `Comida`, `Poder` e `RegistroDeRecordes` não têm teste nenhum, e são
+classes cujas regras o `JogoSnake` só usa por inteiro.
