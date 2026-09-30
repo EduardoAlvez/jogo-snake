@@ -9,8 +9,8 @@
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
-    <name>Jogo Snake - Portfolio Java</name>
-    <description>Snake do portfolio: núcleo sem Swing, borda mata ou dá a volta, skins por código com sprites opcionais</description>
+    <name>Jogo Snake - Portfolio Java (com testes)</name>
+    <description>Branch de desenvolvimento: núcleo sem Swing, borda mata ou dá a volta. Esta é a branch com os testes (JUnit + Surefire + JaCoCo); a main carrega só o jogo</description>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
