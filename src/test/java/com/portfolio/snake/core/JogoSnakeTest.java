@@ -1,5 +1,8 @@
 package com.portfolio.snake.core;
 
+import static com.portfolio.snake.core.JogoSnake.Dificuldade.DIFICIL;
+import static com.portfolio.snake.core.JogoSnake.Dificuldade.FACIL;
+import static com.portfolio.snake.core.JogoSnake.Dificuldade.MEDIO;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -26,11 +29,59 @@ public class JogoSnakeTest {
         return new Campo(lado, lado, Campo.Borda.WRAP);
     }
 
-    /** Jogo pronto para comer, com a cobra deitada para a direita. */
+/** Jogo pronto para comer, com a cobra deitada para a direita. */
     private static JogoSnake jogo(Campo campo) {
-        JogoSnake j = new JogoSnake(campo, JogoSnake.Dificuldade.MEDIO, SEMENTE);
+        JogoSnake j = new JogoSnake(campo, MEDIO, SEMENTE);
         j.iniciar();
         return j;
+    }
+
+    /**
+     * Jogo na dificuldade pedida.
+     *
+     * <p>Existe porque o helper {@code jogo()} fixa a média: sem este, os
+     * números de {@code FACIL} e {@code DIFICIL} nunca eram lidos por teste
+     * nenhum, e trocar dois deles de lugar não derrubaria nada.
+     */
+    private static JogoSnake em(JogoSnake.Dificuldade d) {
+        return em(d, morre(80));
+    }
+
+    private static JogoSnake em(JogoSnake.Dificuldade d, Campo campo) {
+        JogoSnake j = new JogoSnake(campo, d, SEMENTE);
+        j.iniciar();
+        return j;
+    }
+
+    /** Jogo com o nível no teto da dificuldade, alcançado comendo de verdade. */
+    private static JogoSnake noNivelMaximoDe(JogoSnake.Dificuldade d) {
+        JogoSnake j = em(d);
+        comer(j, d.nivelMaximo() + 5);
+        assertEquals("o helper só serve se o teto foi mesmo alcançado",
+                d.nivelMaximo(), j.getNivel());
+        return j;
+    }
+
+    /** Quanto o intervalo cai ao subir exatamente um nível. */
+    private static int quedaPorNivel(JogoSnake.Dificuldade d) {
+        JogoSnake j = em(d);
+        int antes = j.intervaloMs();
+        comer(j, 1);
+        return antes - j.intervaloMs();
+    }
+
+    /**
+     * Come {@code vezes} vezes seguidas, sempre colocando a comida na célula da
+     * frente. O food é colocado pelo caminho da direção <b>atual</b>, e não
+     * assumindo "direita": assim o helper continua valendo se a cobra virar.
+     */
+    private static void comer(JogoSnake j, int vezes) {
+        for (int i = 0; i < vezes; i++) {
+            Direcao d = j.getCobra().getDirecao();
+            Celula cabeca = j.getCobra().cabeca();
+            j.definirComida(cabeca.getX() + d.dx(), cabeca.getY() + d.dy());
+            j.passo(0.15);
+        }
     }
 
     /**
@@ -174,6 +225,55 @@ public class JogoSnakeTest {
         }
         assertTrue(j.getNivel() <= JogoSnake.Dificuldade.MEDIO.nivelMaximo());
         assertTrue(j.intervaloMs() >= 60);
+    }
+
+    // ------------------------------------------------------------------
+    // intervaloMs: as três dificuldades, e não só a média
+    // ------------------------------------------------------------------
+
+    /**
+     * Antes estes valores só eram exercitados em {@code MEDIO}, porque o helper
+     * {@code jogo()} fixa a dificuldade. Com a média coberta, uma troca
+     * acidental dos números de {@code FACIL} e {@code DIFICIL} passava batida —
+     * e a troca giveaway é justamente a que o jogador mais sente, porque é a
+     * diferença entre o jogo parecer rápido e parecer impossível.
+     */
+    @Test
+    public void oIntervaloInicialCaiComADificuldade() {
+        assertEquals(170, em(FACIL).intervaloMs());
+        assertEquals(150, em(MEDIO).intervaloMs());
+        assertEquals(130, em(DIFICIL).intervaloMs());
+        assertTrue(em(FACIL).intervaloMs() > em(MEDIO).intervaloMs());
+        assertTrue(em(MEDIO).intervaloMs() > em(DIFICIL).intervaloMs());
+    }
+
+    @Test
+    public void cadaNivelReduzOIntervaloPeloValorDaDificuldade() {
+        assertEquals(4, quedaPorNivel(FACIL));
+        assertEquals(5, quedaPorNivel(MEDIO));
+        assertEquals(7, quedaPorNivel(DIFICIL));
+    }
+
+    /**
+     * O piso de 60 ms é o que impede o intervalo de chegar a zero (ou negativo)
+     * no nível alto. Em {@code DIFICIL} a conta sem piso dá {@code 130 - 7*19 = -3}:
+     * sem o {@code Math.max} a cobra andaria com {@code dt} negativo.
+     */
+    @Test
+    public void oIntervaloTemPisoDe60ms() {
+        // FACIL no teto: 170 - 4*19 = 94, ainda acima do piso
+        assertEquals(94, noNivelMaximoDe(FACIL).intervaloMs());
+        // MEDIO e DIFICIL no teto caem abaixo de 60 e são aparados pelo piso
+        assertEquals(60, noNivelMaximoDe(MEDIO).intervaloMs());
+        assertEquals(60, noNivelMaximoDe(DIFICIL).intervaloMs());
+    }
+
+    @Test
+    public void oNivelParaNoTeto() {
+        JogoSnake j = jogo(morre(60));
+        comer(j, JogoSnake.Dificuldade.MEDIO.nivelMaximo() + 10);
+        assertEquals("o nível tem que parar no teto, senão o intervalo continua caindo",
+                JogoSnake.Dificuldade.MEDIO.nivelMaximo(), j.getNivel());
     }
 
     // ------------------------------------------------------------------
