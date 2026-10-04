@@ -1,5 +1,8 @@
 package com.portfolio.snake.ui;
 
+import com.portfolio.snake.audio.Sons;
+import com.portfolio.snake.audio.Trilha;
+import com.portfolio.snake.audio.Sons.Efeito;
 import com.portfolio.snake.core.Campo;
 import com.portfolio.snake.core.Direcao;
 import com.portfolio.snake.core.JogoSnake;
@@ -145,10 +148,19 @@ public final class TelaSnake extends JFrame {
 
     /** Começa o laço do jogo, com o período que o núcleo pediu. */
     public void iniciarRelogio() {
+        // carrega os sons uma vez, aqui na EDT. São 102 KB e quatro cabeçalhos:
+        // trabalho de milissegundos. Uma versão anterior fazia isto numa thread
+        // daemon para "não travar a janela", mas o que trava a EDT é o
+        // getClip()+open() de cada toque, que continua no mesmo lugar.
+        Sons.carregarTodos();
         if (timer != null) {
             timer.stop();
         }
         timer = new Timer(jogo.intervaloMs(), e -> {
+            // o retrato e tirado ANTES do passo, para saber o que mudou depois.
+            // E lido aqui, no laco do relogio, e nunca dentro de paintComponent:
+            // um som disparado no desenho tocaria uma vez por repintura.
+            Trilha.Retrato antes = Trilha.tira(jogo);
             long agora = System.nanoTime();
             double segundos = (agora - ultimoPasso) / 1_000_000_000.0;
             ultimoPasso = agora;
@@ -160,6 +172,7 @@ public final class TelaSnake extends JFrame {
                 segundos = 0;
             }
             jogo.passo(segundos);
+            anunciarSons(antes);
             conferirFimDaPartida();
             repaint();
             // a dificuldade muda o intervalo, então o Timer precisa acompanhá-la
@@ -169,6 +182,20 @@ public final class TelaSnake extends JFrame {
         });
         ultimoPasso = System.nanoTime();
         timer.start();
+    }
+
+    /**
+     * Toca os sons que o passo produziu.
+     *
+     * <p>A regra do que é evento mora em {@link Trilha}, fora da janela, onde
+     * tem teste. Aqui fica só a entrega, que é o que a janela tem de fazer.
+     *
+     * @param antes o retrato de antes do passo
+     */
+    private void anunciarSons(Trilha.Retrato antes) {
+        for (Efeito efeito : Trilha.dePara(antes, Trilha.tira(jogo))) {
+            Sons.tocar(efeito);
+        }
     }
 
     /**

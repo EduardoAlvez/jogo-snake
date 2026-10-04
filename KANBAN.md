@@ -37,7 +37,7 @@ Mesma convenção do Pong, e mais limpa:
 
 | Branch | Papel | Versão | Testes |
 |---|---|---|---|
-| `testes-jogo-snake` | desenvolvimento | `1.0-SNAPSHOT` | pom com JUnit + Surefire + JaCoCo, e os 98 testes em `src/test` |
+| `testes-jogo-snake` | desenvolvimento | `1.0-SNAPSHOT` | pom com JUnit + Surefire + JaCoCo, e os 129 testes em `src/test` |
 | `main` | release | a versionar na release | **sem** `src/test` e sem JUnit, Surefire ou JaCoCo |
 
 A diferença para o Pong é deliberada. Lá a `main` também guarda `src/test` e a
@@ -77,7 +77,7 @@ eles foram escritos antes de a separação existir. A partir do commit que criou
 | 3 | — | core | ~~**`JogoSnake` testado só nas regras básicas**~~ resolvido no round 2: os 32 testes de `JogoSnakeTest` cobrem comer, as duas bordas, colidir com o corpo, a cabeça na célula liberada pela cauda, campo lotado, os dois poderes com renovação, pausa, reinício e a fila de direções; **mais** (a) `JogoSnakeSoakTest`, que joga 20 000 passos reais em partidas encadeadas, e (b) `intervaloMs` nas três dificuldades, com o piso de 60 ms e o teto de nível. O (c) — recorde em disco — já estava resolvido em `DesenhoJogoTest`, que aponta `user.home` para uma pasta temporária e apaga tudo depois. **O soak não achou bug** — ver "Round 2" |
 | 4 | ~~Alta~~ | ui | ~~**Testes de UI desde o começo**~~ | **Concluído: 37 testes em `ui`** (24 de layout + 13 de desenho), e ambos os grupos foram verificados por mutação. `LayoutSnake` cobre a geometria e achou um defeito real de 8px entre tabuleiro e rodapé. `DesenhoJogo` cobre os pixels e achou o selo de recorde piscando (bug 5 abaixo) |
 | 5 | Média | skin | As 4 skins | `Skin` + `CatalogoSkins` + `SkinVetorial` (a base, sempre presente) + `SkinSprites` (14 tiles: 4 cabeças, 4 rabos, 2 corpos retos, 4 cantos, com fallback vetorial se o PNG faltar). `Clássico`, `Chapéu`, `Colorida` e `Dedinho`, com persistência em `~/.jogo-snake-skin.properties` e troca sem reiniciar a partida |
-| 6 | Média | audio | Sons e o silêncio no executável | Regressão do Pong: o áudio era silencioso no `.exe` e só apareceu em teste que **toca de dentro de um jar**, com `BufferedInputStream` desde a primeira linha. Comer, poder, bater na parede e fim de partida |
+| 6 | ~~Média~~ | audio | ~~**Sons e o silêncio no executável**~~ | **Concluído: 31 testes em `audio`** (15 do `Sons` + 13 da `Trilha` + 3 do motivo no `core`). Os quatro efeitos são gerados por código, e o teste carrega o **próprio `Sons` de dentro de um jar** — foi o que transforma a regressão do Pong em um teste que morde |
 | 7 | Média | fx | Partículas | Comer comida, coletar poder, bater na parede. Reaproveitar o desenho do Pong |
 | 8 | Média | — | **README** | Não existe. Tem que descrever o que o Snake **tem**, e não o que ele vai ter, com o mesmo cuidado do Pong depois do badge: nada de "validado por smoke test" sem o teste |
 | 9 | Baixa | ui | Segundo jogador | **Adiado pelo usuário.** A entrada de dois jogadores no mesmo teclado é a parte chata de interface |
@@ -131,7 +131,7 @@ escrito na lista abaixo para não se perder de vista.
 
 ### O que o build verificado cubriu
 
-- `mvn clean package` verde, **98 testes** (85 + os 7 de `LogoTest` + 6 do round 2)
+- `mvn clean package` verde, **129 testes** (85 + 7 de `LogoTest` + 6 do round 2 + 31 de `audio`)
 - `target/jogo-snake.exe` gerado, e **abrindo de verdade**: processo `javaw.exe` no
   ar com janela de título `Jogo Snake`
 - `logo.ico` embutido no executável, `logo-{16..256}.png` no classpath (8 recursos
@@ -144,7 +144,6 @@ Nada disso foi publicado: **sem tag, sem release, sem push**. Não é entrega.
 | | Camada | O que falta |
 |---|---|---|
 | 1 | `skin/` | as 4 skins do briefing. O pacote existe **vazio**: 0 arquivos |
-| 2 | `audio/` | os sons. O pacote existe **vazio**: 0 arquivos, e `resources/sons/` é pasta sem nada |
 | 3 | `fx/` | as partículas. O pacote existe **vazio**: 0 arquivos |
 | 4 | ui | validação visual **humana** (a lista em "Validação visual") |
 | 5 | — | item 8: o README |
@@ -366,6 +365,67 @@ não está instalado), e o harness lia o XML de uma execução anterior. Só apa
 porque as cinco linhas eram idênticas, o que é impossível para mutações
 diferentes. **Harness que não confere o código de retorno mente com confiança.**
 
+### Round 3 — o item 6 do backlog: os sons
+
+**31 testes novos**: 15 no `Sons`, 13 na `Trilha` e 3 no motivo da derrota, dentro
+do `JogoSnakeTest`. Os quatro efeitos são gerados por `tools/GerarSons.java` (PCM
+16-bit, mono, 44100 Hz), então o repositório não carrega binário de terceiros.
+
+O teste que importa é `oSonsDeVerdadeCarregaOsSonsDeDentroDeUmJar`: ele empacota
+o **próprio `Sons`** num jar e o carrega com `ClassLoader.getPlatformClassLoader()`.
+Isso é o que transforma a regressão do Pong em algo que morde — verificado por
+mutação, entregar o fluxo do classpath direto ao decoder derruba **10 de 15**.
+
+| Mutação | Testes que caem |
+|---|---|
+| **A7**: fluxo do classpath direto ao decoder (o defeito do Pong) | **10 de 15** |
+| A1: tirar o `BufferedInputStream` só do `leBytes` | 0 — e está certo: a implementação lê para a memória e decodifica de `ByteArrayInputStream`, então o buffer ali é defesa, não carga |
+| Trilha M1: som de morte invertido | `morrerNaParedeTocaParedeEFim` |
+| Trilha M2: deixar "comer" soar no mesmo passo da morte | `oPassoQueComeEMata...` |
+| Trilha M3: parede soar em qualquer morte | `morrerNoCorpoTocaSoFim` |
+| Trilha M4: não exigir que a partida estivesse jogando | `umTiqueComAPartidaJaTerminada...` |
+| Trilha M5: comida contando `>=` | `umTiqueComAPartidaJaTerminada...` |
+| Trilha M6: poder já ativo soar de novo | `umPoderQueContinuaAtivo...` |
+
+**O motivo da morte no núcleo.** Os dois jeitos de morrer são `Estado.FIM`, então a
+interface não tinha como escolher entre dois sons diferentes. `JogoSnake.Motivo`
+(`PAREDE`/`CORPO`) existe só para a tela ler — o núcleo não decide nada com ele. E
+ele é apagado no `reiniciar`, senão a partida nova morria na parede com o som da
+colisão no corpo.
+
+**A regra de som mora fora da janela.** `Trilha` compara o retrato de antes do passo
+com o de depois e devolve a lista de efeitos. Dentro da `JFrame` isso não teria
+teste, e regra de jogo sem teste é regra que alguém "ajusta" sem querer — o mesmo
+motivo que levou `DesenhoJogo` e `LayoutSnake` para fora.
+
+**Validação humana: o som tocou no `.exe`.** O usuário abriu `target/jogo-snake.exe`
+e ouviu o efeito. É o passo que faltava no Pong, e é o único que a suíte não faz:
+ela prova que os bytes decodificam, não que alguém ouve alguma coisa.
+
+### A thread que foi desfeita
+
+A primeira versão carregava os sons numa **thread daemon** "para não travar a
+janela". Era otimização sem alvo: o que é caro — `AudioSystem.getClip()` e
+`clip.open()` — acontece em `tocar`, dentro do `Timer`, ou seja, **na EDT**, e
+continua lá. A thread só tinha tirado da EDT a parte barata: ler 102 KB e parsear
+quatro cabeçalhos WAV.
+
+O que ela custou: um `AtomicBoolean` para `preparar()` ser idempotente, um
+`ConcurrentHashMap` no lugar de um `EnumMap` (porque duas threads escreviam no
+mesmo mapa), dois testes de concorrência e a discussão de publicação segura do
+`byte[]`.
+
+Foi desfeita. Hoje `Sons.carregarTodos()` é um laço síncrono, o cache é um
+`EnumMap` e a tela chama uma vez no `iniciarRelogio()`.
+
+**Um registro honesto sobre aqueles dois testes:** a primeira versão rodava as
+threads na `Sons` da suíte, com o cache **já quente** — então só exercitava
+leituras concorrentes, que são inofensivas. Verificado por mutação, não pegava nem a
+reintrodução do `EnumMap`: 0 em 3 execuções. Além disso podiam travar para sempre
+num `CyclicBarrier` e deixar o JVM aberto segurando os WAVs, o que chegou a fazer o
+`mvn clean` falhar. Nada disso era guarda do cache: era uma corrida fabricada, e a
+linha de defesa real do `byte[]` é o `ConcurrentHashMap`, não um teste de stress.
+
 ### Bugs reais que os testes acharam (e que a leitura não pegaria)
 
 1. **A cobra ignorava as viradas do jogador.** `consumirDirecao()` e
@@ -415,13 +475,13 @@ mentia.
 
 | | Pong | Snake |
 |---|---|---|
-| Testes | 180 | **98** |
+| Testes | 180 | **129** |
 | Testes em `ui` | 27 (só o `BotaosTest`) | **44** (24 de layout + 13 de pixels + 7 do ícone) |
 | Classes de `core` sem teste | — | `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder`, `RegistroDeRecordes` |
 | Bugs reais achados por teste | 2 (o hover e o prêmio congelado, ambos na 1.0.1) | **5** (4 por teste de regra, 1 por teste de pixel) |
 | Linha de comando | — | `/c/Users/dudu2/.m2/wrapper/dists/apache-maven-3.9.11/d6d3cbd4012d4c1d840e93277aca316c/bin/mvn` (o `mvn` não está no `PATH`) |
 
-A coluna do Pong é a da `v1.0.1`. A do Snake é depois do item 2, e **98 testes não
-são 98 de cobertura**: `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder` e
+A coluna do Pong é a da `v1.0.1`. A do Snake é depois do item 6, e **129 testes não
+são 129 de cobertura**: `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder` e
 `RegistroDeRecordes` continuam sem teste próprio, e são classes cujas regras o
 `JogoSnake` só usa por inteiro.
