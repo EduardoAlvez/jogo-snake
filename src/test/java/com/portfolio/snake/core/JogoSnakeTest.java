@@ -6,6 +6,8 @@ import static com.portfolio.snake.core.JogoSnake.Dificuldade.MEDIO;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -225,6 +227,57 @@ public class JogoSnakeTest {
         }
         assertTrue(j.getNivel() <= JogoSnake.Dificuldade.MEDIO.nivelMaximo());
         assertTrue(j.intervaloMs() >= 60);
+    }
+
+    // ------------------------------------------------------------------
+    // O motivo da derrota: a interface distingue parede de corpo por ele
+    // ------------------------------------------------------------------
+
+    @Test
+    public void baterNaParedeDaMotivoDeParede() {
+        JogoSnake j = jogo(morre(20));
+        Direcao d = j.getCobra().getDirecao();
+        // caminha em linha reta até a parede, sem dar chance de se atropelar
+        while (j.getEstado() == JogoSnake.Estado.JOGANDO) {
+            j.passo(0.15);
+        }
+        assertEquals(JogoSnake.Estado.FIM, j.getEstado());
+        assertEquals(JogoSnake.Motivo.PAREDE, j.getMotivo());
+    }
+
+    @Test
+    public void baterNoCorpoDaMotivoDeCorpo() {
+        Campo campo = wrap(30);
+        JogoSnake j = new JogoSnake(campo, MEDIO, SEMENTE);
+        j.iniciar();
+        // 5 segmentos: com 3, tres curvas nao fecham o circulo e a cobra passa
+        // direto sem se atropelar -- o teste passaria sem morrer nunca
+        j.definirCobra(deitada(campo, 15, 15, 5));
+        // um quadrado de quatro voltas, em que a ultima cai na celula que a
+        // cabeca ocupava ha quatro passos, e essa celula ainda esta no corpo
+        j.passo(0.15);
+        j.getCobra().enfileirar(Direcao.CIMA);
+        j.passo(0.15);
+        j.getCobra().enfileirar(Direcao.DIREITA);
+        j.passo(0.15);
+        j.getCobra().enfileirar(Direcao.BAIXO);
+        j.passo(0.15);
+        j.getCobra().enfileirar(Direcao.ESQUERDA);
+        j.passo(0.15);
+        assertEquals(JogoSnake.Estado.FIM, j.getEstado());
+        assertEquals("a cobra deve ter morrido no corpo, e nao na parede",
+                JogoSnake.Motivo.CORPO, j.getMotivo());
+    }
+
+    @Test
+    public void oMotivoSomeReiniciar() {
+        JogoSnake j = jogo(morre(20));
+        while (j.getEstado() == JogoSnake.Estado.JOGANDO) {
+            j.passo(0.15);
+        }
+        assertNotNull("premissa do teste: a partida tem que ter terminado", j.getMotivo());
+        j.reiniciar();
+        assertNull("o motivo da partida anterior vazou para a nova", j.getMotivo());
     }
 
     // ------------------------------------------------------------------
