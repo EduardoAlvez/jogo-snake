@@ -26,7 +26,7 @@ src/main/resources/
 └── sons/                                # .wav sintetizados
 
 tools/
-└── GerarLogo.java
+└── GerarLogo.java                        # Deriva os PNGs e o logo.ico do logo-256.png
 
 target/                                   # Saída do build (não versionada)
 ```
@@ -37,7 +37,7 @@ Mesma convenção do Pong, e mais limpa:
 
 | Branch | Papel | Versão | Testes |
 |---|---|---|---|
-| `testes-jogo-snake` | desenvolvimento | `1.0-SNAPSHOT` | pom com JUnit + Surefire + JaCoCo, e os 85 testes em `src/test` |
+| `testes-jogo-snake` | desenvolvimento | `1.0-SNAPSHOT` | pom com JUnit + Surefire + JaCoCo, e os 92 testes em `src/test` |
 | `main` | release | a versionar na release | **sem** `src/test` e sem JUnit, Surefire ou JaCoCo |
 
 A diferença para o Pong é deliberada. Lá a `main` também guarda `src/test` e a
@@ -73,7 +73,7 @@ eles foram escritos antes de a separação existir. A partir do commit que criou
 | # | Prioridade | Camada | Tarefa | Detalhes |
 |---|-----------|--------|--------|----------|
 | 1 | ~~Alta~~ | ui | ~~**`TelaSnake` não existe**~~ | **Concluído.** Janela, tabuleiro, cobra com as 14 formas, HUD (pontos, recorde, nível, comprimento), faixa de borda, rodapé com cards de poder, pausa, briefing com escolha de borda e dificuldade, tela de fim com selo de novo recorde, e o laço de tempo que mede o tempo decorrido entre tiques (um travamento da máquina atrasa a cobra, não a teletransporta). A janela **abre de verdade** — ver "Validação visual" |
-| 2 | **Alta** | build | **`logo.ico` e `tools/GerarLogo.java` ausentes** | O launch4j aponta para `src/main/resources/logo.ico`, que não existe, então o `package` falha na hora de montar o `.exe`. Falta o gerador dos PNGs por resolução e o `.ico` |
+| 2 | ~~Alta~~ | build | ~~**`logo.ico` e `tools/GerarLogo.java` ausentes**~~ | **Concluído.** `tools/DesenharLogoSnake.java` desenha o mestre `logo-256.png` por código, e `tools/GerarLogo.java` deriva os 6 PNGs menores e monta o `.ico`. Ver "Ícone e logo" abaixo |
 | 3 | Média | core | **`JogoSnake` testado só nas regras básicas** | Os 32 testes de `JogoSnakeTest` cobrem comer, as duas bordas, colidir com o corpo, a cabeça na célula liberada pela cauda, campo lotado, os dois poderes com renovação, pausa, reinício e a fila de direções. **Falta**: (a) a semente fixa é usada, mas nenhum teste roda a partida inteira por muitos passos para caçar comportamento intermitente; (b) nenhum teste cobre `intervaloMs` nas três dificuldades; (c) ~~o recorde nunca é gravado em disco nos testes~~ resolvido em `DesenhoJogoTest`, que aponta `user.home` para uma pasta temporária e apaga tudo depois |
 | 4 | ~~Alta~~ | ui | ~~**Testes de UI desde o começo**~~ | **Concluído: 37 testes em `ui`** (24 de layout + 13 de desenho), e ambos os grupos foram verificados por mutação. `LayoutSnake` cobre a geometria e achou um defeito real de 8px entre tabuleiro e rodapé. `DesenhoJogo` cobre os pixels e achou o selo de recorde piscando (bug 5 abaixo) |
 | 5 | Média | skin | As 4 skins | `Skin` + `CatalogoSkins` + `SkinVetorial` (a base, sempre presente) + `SkinSprites` (14 tiles: 4 cabeças, 4 rabos, 2 corpos retos, 4 cantos, com fallback vetorial se o PNG faltar). `Clássico`, `Chapéu`, `Colorida` e `Dedinho`, com persistência em `~/.jogo-snake-skin.properties` e troca sem reiniciar a partida |
@@ -115,22 +115,95 @@ Falta o olho de uma pessoa, nesta lista:
 - os 4 cantos aparecem nas viradas
 - a cabeça na borda no modo `WRAP`
 - os cards de poder não saindo do campo com 2 poderes ativos ao mesmo tempo
-- o ícone na barra de tarefas e no Alt+Tab (depende do item 2)
+- o ícone na barra de tarefas e no Alt+Tab (o item 2 está resolvido: são 7
+  resoluções por `setIconImages`, e o `.exe` embute o `.ico` — mas **ninguém
+  olhou**)
 - o recorde sobreviving ao fechamento da janela
 
 ## Fazendo (Doing)
 
-O caminho crítico mudou: o jogo **abre** (85 testes verdes, janela no ar). O que
-trava a release agora é o item 2 — `logo.ico` e `tools/GerarLogo.java` — porque o
-`package` continua falhando ao montar o `.exe`.
+**Status: em andamento. O jogo não está pronto, e o `.exe` não é signal disso.**
 
-O item 8 (README) anda junto, e ele tem uma regra nova que este projeto aprendeu
-duas vezes: **descrever o que o Snake tem, e não o que ele vai ter**. Nada de
-"validado visualmente" sem o que foi validado, e nada de "testado" sem o nome do
-teste.
+O item 2 está resolvido e o `package` passou. Isso é **build verificado**, que é uma
+coisa diferente de release: prova que o launch4j acha o ícone, que o jar monta e
+que o executável abre. Não prova que o jogo está acabado, e o que falta está
+escrito na lista abaixo para não se perder de vista.
 
-Falta, além disso, o item 3: `intervaloMs` nas três dificuldades, e uma partida
-inteira corrida por muitos passos para caçar comportamento intermitente.
+### O que o build verificado cubriu
+
+- `mvn clean package` verde, **92 testes** (85 + os 7 de `LogoTest`)
+- `target/jogo-snake.exe` gerado, e **abrindo de verdade**: processo `javaw.exe` no
+  ar com janela de título `Jogo Snake`
+- `logo.ico` embutido no executável, `logo-{16..256}.png` no classpath (8 recursos
+  no jar), `Main-Class` correta, e **zero `*Test.class` no artefato**
+
+Nada disso foi publicado: **sem tag, sem release, sem push**. Não é entrega.
+
+### O que ainda falta para o jogo estar pronto
+
+| | Camada | O que falta |
+|---|---|---|
+| 1 | `skin/` | as 4 skins do briefing. O pacote existe **vazio**: 0 arquivos |
+| 2 | `audio/` | os sons. O pacote existe **vazio**: 0 arquivos, e `resources/sons/` é pasta sem nada |
+| 3 | `fx/` | as partículas. O pacote existe **vazio**: 0 arquivos |
+| 4 | ui | validação visual **humana** (a lista em "Validação visual") |
+| 5 | core | item 3 do backlog: `intervaloMs` nas três dificuldades e partida longa |
+| 6 | — | item 8: o README |
+
+Um `.exe` que abre não é um jogo pronto. O que existe hoje é um Snake jogável,
+completo em regra, e **mudo, sem tema e sem efeito**.
+
+O item 8 (README) é o último de propósito, e ele tem uma regra que este projeto
+aprendeu duas vezes: **descrever o que o Snake tem, e não o que ele vai ter**.
+Nada de "validado visualmente" sem o que foi validado, e nada de "testado" sem o
+nome do teste. Se o README for escrito agora, ele descreve um jogo mudo sem skin,
+e passa a mentir assim que os itens 5 e 6 existirem.
+
+## Ícone e logo
+
+Duas ferramentas, e o motivo de o mestre ser gerado por código:
+
+- `tools/DesenharLogoSnake.java` desenha o `logo-256.png` a partir de Java2D. Um
+  PNG binário que ninguém sabe refazer é defeito esperando — foi o que travou este
+  projeto, e no Pong o `logo-256.png` foi committed pronto e nunca pôde ser
+  regenerado. Aqui a arte sai da paleta que o jogo já usa (`DesenhoJogo`):
+  gradiente `0x0B0E13 → 0x11161F`, corpo alternando `0x2BA85F`/`0x3DDC84` como o
+  jogo alterna por segmento, cabeça `0x7CF0AC` com os olhos `0x0C1014`, e a comida
+  `0xFF6B6B` com halo e brilho. O ícone é um frame do jogo, não uma cobra genérica.
+- `tools/GerarLogo.java` deriva os 6 PNGs e monta o `.ico` (BMP com máscara AND até
+  48px, PNG comprimido acima). O JDK não tem writer de ICO no `ImageIO`.
+
+```bash
+java tools/DesenharLogoSnake.java   # gera o mestre 256x256
+java tools/GerarLogo.java           # deriva os 6 PNGs e o logo.ico
+```
+
+A diferença para a versão que veio do Pong: **a máscara AND é de verdade**. O bit 1
+da máscara significa transparente, e a versão do Pong a escrevia zerada — correto
+para uma imagem opaca, errado para esta. Aqui o bit 1 é posto onde o alpha fica
+abaixo de 128, e as linhas são gravadas de baixo para cima como manda um
+`BITMAPINFOHEADER` de altura positiva.
+
+`LogoTest` (7 testes) confere o **produto**, não o gerador — `tools/` nem entra no
+build. Verificado por mutação:
+
+| Mutação | Cai |
+|---|---|
+| máscara AND zerada (o defeito do Pong) | 2 testes: `aEntradaPequenaDoIcoDeclaraTransparencia` e `aMascaraDoIcoConcordaComOAlphaDoPng` |
+| fundo opaco, sem cobra e sem comida | 3 testes, incluindo `oMestreTemCantoTransparente` |
+
+**O que estes testes não pegam, e é preciso escrever:** inverter a ordem das linhas
+da máscara **não** é detectado. A única região transparente é a borda e os quatro
+cantos do retângulo arredondado, e essa forma é simétrica na vertical — inverter as
+linhas produz um `.ico` byte a byte idêntico, e os 7 testes continuam verdes
+(verificado). Não existe entrada que diferencie as duas ordens com esta imagem. A
+ordem está correta, mas a suíte não a vigia; `aTransparenciaDoLogoEhSimetricaNaVertical`
+existe para registrar essa limitação, e se a transparência deixar de ser simétrica
+um dia, ele passa a falhar e avisa que a cobertura mudou.
+
+`TelaSnake` agora chama `setIconImages` com as 7 resoluções, em vez de
+`setIconImage` com uma só — com uma, o Windows escala a imagem e o ícone fica
+borrado na barra de tarefas.
 
 ## Feito (Done)
 
@@ -210,6 +283,14 @@ inteira corrida por muitos passos para caçar comportamento intermitente.
 - **A janela abre de verdade** — processo no ar e título `Jogo Snake` encontrado
   pelo Windows. Isso prova que sobe, e não que está bonito: ver "Validação
   visual"
+- **Ícone e `.ico`** — `DesenharLogoSnake` gera o mestre 256×256 por Java2D a
+  partir da paleta do jogo, e `GerarLogo` deriva os 7 PNGs e monta o `.ico` com a
+  máscara AND de verdade (a do Pong era zerada, o que declara a imagem toda opaca).
+  `LogoTest` confere o produto em 7 testes, com 2 mutações verificadas e uma
+  limitação registrada. `TelaSnake` passou a `setIconImages` com as 7 resoluções
+- **Primeiro `.exe` do projeto** — `mvn clean package` verde com 92 testes, e o
+  executável **abrindo** (`javaw.exe` no ar, janela `Jogo Snake`). É build
+  verificado, não release: sem tag, sem publicação, sem push
 
 ### Bugs reais que os testes acharam (e que a leitura não pegaria)
 
@@ -260,12 +341,13 @@ mentia.
 
 | | Pong | Snake |
 |---|---|---|
-| Testes | 149 | **85** |
-| Testes em `ui` | 0 | **37** (24 de layout + 13 de pixels) |
+| Testes | 180 | **92** |
+| Testes em `ui` | 27 (só o `BotaosTest`) | **44** (24 de layout + 13 de pixels + 7 do ícone) |
 | Classes de `core` sem teste | — | `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder`, `RegistroDeRecordes` |
-| Bugs reais achados por teste | 1 (badge fora do campo, achado por leitura) | **5** (4 por teste de regra, 1 por teste de pixel) |
+| Bugs reais achados por teste | 2 (o hover e o prêmio congelado, ambos na 1.0.1) | **5** (4 por teste de regra, 1 por teste de pixel) |
 | Linha de comando | — | `/c/Users/dudu2/.m2/wrapper/dists/apache-maven-3.9.11/d6d3cbd4012d4c1d840e93277aca316c/bin/mvn` (o `mvn` não está no `PATH`) |
 
-O Snake ainda está **atrás** do Pong em cobertura: `Campo`, `Direcao`, `Celula`,
-`Forma`, `Comida`, `Poder` e `RegistroDeRecordes` não têm teste próprio, e são
-classes cujas regras o `JogoSnake` só usa por inteiro.
+A coluna do Pong é a da `v1.0.1`. A do Snake é depois do item 2, e **92 testes não
+são 92 de cobertura**: `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder` e
+`RegistroDeRecordes` continuam sem teste próprio, e são classes cujas regras o
+`JogoSnake` só usa por inteiro.

@@ -10,6 +10,8 @@ import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.event.KeyEvent;
+import java.util.ArrayList;
+import java.util.List;
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
@@ -34,6 +36,9 @@ import javax.swing.Timer;
 public final class TelaSnake extends JFrame {
 
     private static final long serialVersionUID = 1L;
+
+    /** As resoluções do ícone, da menor para a maior. */
+    private static final int[] TAMANHOS_ICONE = {16, 24, 32, 48, 64, 128, 256};
 
     private final transient LayoutSnake layout;
     /**
@@ -92,11 +97,18 @@ public final class TelaSnake extends JFrame {
         setFocusable(true);
         setContentPane(new Painel());
 
-        // o ícone ainda não existe no repositório; sem ele a janela abre do mesmo
-        // jeito, usando o ícone do sistema
+        // O ícone em 7 resoluções, uma por contexto do Windows. Com setIconImage
+        // (uma só), o SO escala a imagem e o ícone fica borrado na barra de
+        // tarefas; com setIconImages ele escolhe a resolução certa para cada uso.
+        // Os arquivos são gerados por tools/DesenharLogoSnake.java e
+        // tools/GerarLogo.java, e verificados por LogoTest.
         try {
-            setIconImage(java.awt.Toolkit.getDefaultToolkit().getImage(
-                    TelaSnake.class.getResource("/logo-32.png")));
+            List<java.awt.Image> icones = new ArrayList<>();
+            for (int lado : TAMANHOS_ICONE) {
+                icones.add(java.awt.Toolkit.getDefaultToolkit().getImage(
+                        TelaSnake.class.getResource("/logo-" + lado + ".png")));
+            }
+            setIconImages(icones);
         } catch (RuntimeException e) {
             // recurso ausente ou ambiente sem toolkit: a janela abre igual
         }
@@ -308,7 +320,7 @@ public final class TelaSnake extends JFrame {
             final int tecla = codigo;
             String nome = "tecla-" + tecla;
             im.put(javax.swing.KeyStroke.getKeyStroke(tecla, 0), nome);
-            am.put(nome, new javax.swing.AbstractAction() {
+am.put(nome, new javax.swing.AbstractAction() {
                 private static final long serialVersionUID = 1L;
 
                 @Override
