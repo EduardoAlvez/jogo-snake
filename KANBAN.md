@@ -37,7 +37,7 @@ Mesma convenção do Pong, e mais limpa:
 
 | Branch | Papel | Versão | Testes |
 |---|---|---|---|
-| `testes-jogo-snake` | desenvolvimento | `1.0-SNAPSHOT` | pom com JUnit + Surefire + JaCoCo, e os 92 testes em `src/test` |
+| `testes-jogo-snake` | desenvolvimento | `1.0-SNAPSHOT` | pom com JUnit + Surefire + JaCoCo, e os 98 testes em `src/test` |
 | `main` | release | a versionar na release | **sem** `src/test` e sem JUnit, Surefire ou JaCoCo |
 
 A diferença para o Pong é deliberada. Lá a `main` também guarda `src/test` e a
@@ -74,7 +74,7 @@ eles foram escritos antes de a separação existir. A partir do commit que criou
 |---|-----------|--------|--------|----------|
 | 1 | ~~Alta~~ | ui | ~~**`TelaSnake` não existe**~~ | **Concluído.** Janela, tabuleiro, cobra com as 14 formas, HUD (pontos, recorde, nível, comprimento), faixa de borda, rodapé com cards de poder, pausa, briefing com escolha de borda e dificuldade, tela de fim com selo de novo recorde, e o laço de tempo que mede o tempo decorrido entre tiques (um travamento da máquina atrasa a cobra, não a teletransporta). A janela **abre de verdade** — ver "Validação visual" |
 | 2 | ~~Alta~~ | build | ~~**`logo.ico` e `tools/GerarLogo.java` ausentes**~~ | **Concluído.** `tools/DesenharLogoSnake.java` desenha o mestre `logo-256.png` por código, e `tools/GerarLogo.java` deriva os 6 PNGs menores e monta o `.ico`. Ver "Ícone e logo" abaixo |
-| 3 | Média | core | **`JogoSnake` testado só nas regras básicas** | Os 32 testes de `JogoSnakeTest` cobrem comer, as duas bordas, colidir com o corpo, a cabeça na célula liberada pela cauda, campo lotado, os dois poderes com renovação, pausa, reinício e a fila de direções. **Falta**: (a) a semente fixa é usada, mas nenhum teste roda a partida inteira por muitos passos para caçar comportamento intermitente; (b) nenhum teste cobre `intervaloMs` nas três dificuldades; (c) ~~o recorde nunca é gravado em disco nos testes~~ resolvido em `DesenhoJogoTest`, que aponta `user.home` para uma pasta temporária e apaga tudo depois |
+| 3 | — | core | ~~**`JogoSnake` testado só nas regras básicas**~~ resolvido no round 2: os 32 testes de `JogoSnakeTest` cobrem comer, as duas bordas, colidir com o corpo, a cabeça na célula liberada pela cauda, campo lotado, os dois poderes com renovação, pausa, reinício e a fila de direções; **mais** (a) `JogoSnakeSoakTest`, que joga 20 000 passos reais em partidas encadeadas, e (b) `intervaloMs` nas três dificuldades, com o piso de 60 ms e o teto de nível. O (c) — recorde em disco — já estava resolvido em `DesenhoJogoTest`, que aponta `user.home` para uma pasta temporária e apaga tudo depois. **O soak não achou bug** — ver "Round 2" |
 | 4 | ~~Alta~~ | ui | ~~**Testes de UI desde o começo**~~ | **Concluído: 37 testes em `ui`** (24 de layout + 13 de desenho), e ambos os grupos foram verificados por mutação. `LayoutSnake` cobre a geometria e achou um defeito real de 8px entre tabuleiro e rodapé. `DesenhoJogo` cobre os pixels e achou o selo de recorde piscando (bug 5 abaixo) |
 | 5 | Média | skin | As 4 skins | `Skin` + `CatalogoSkins` + `SkinVetorial` (a base, sempre presente) + `SkinSprites` (14 tiles: 4 cabeças, 4 rabos, 2 corpos retos, 4 cantos, com fallback vetorial se o PNG faltar). `Clássico`, `Chapéu`, `Colorida` e `Dedinho`, com persistência em `~/.jogo-snake-skin.properties` e troca sem reiniciar a partida |
 | 6 | Média | audio | Sons e o silêncio no executável | Regressão do Pong: o áudio era silencioso no `.exe` e só apareceu em teste que **toca de dentro de um jar**, com `BufferedInputStream` desde a primeira linha. Comer, poder, bater na parede e fim de partida |
@@ -131,7 +131,7 @@ escrito na lista abaixo para não se perder de vista.
 
 ### O que o build verificado cubriu
 
-- `mvn clean package` verde, **92 testes** (85 + os 7 de `LogoTest`)
+- `mvn clean package` verde, **98 testes** (85 + os 7 de `LogoTest` + 6 do round 2)
 - `target/jogo-snake.exe` gerado, e **abrindo de verdade**: processo `javaw.exe` no
   ar com janela de título `Jogo Snake`
 - `logo.ico` embutido no executável, `logo-{16..256}.png` no classpath (8 recursos
@@ -147,8 +147,11 @@ Nada disso foi publicado: **sem tag, sem release, sem push**. Não é entrega.
 | 2 | `audio/` | os sons. O pacote existe **vazio**: 0 arquivos, e `resources/sons/` é pasta sem nada |
 | 3 | `fx/` | as partículas. O pacote existe **vazio**: 0 arquivos |
 | 4 | ui | validação visual **humana** (a lista em "Validação visual") |
-| 5 | core | item 3 do backlog: `intervaloMs` nas três dificuldades e partida longa |
-| 6 | — | item 8: o README |
+| 5 | — | item 8: o README |
+
+O item 3 do backlog saiu desta lista no round 2: `intervaloMs` nas três
+dificuldades está coberto e a partida longa virou soak. Os números e o que o
+soak **não** pegou estão em "Round 2 — o item 3 do backlog".
 
 Um `.exe` que abre não é um jogo pronto. O que existe hoje é um Snake jogável,
 completo em regra, e **mudo, sem tema e sem efeito**.
@@ -288,9 +291,80 @@ borrado na barra de tarefas.
   máscara AND de verdade (a do Pong era zerada, o que declara a imagem toda opaca).
   `LogoTest` confere o produto em 7 testes, com 2 mutações verificadas e uma
   limitação registrada. `TelaSnake` passou a `setIconImages` com as 7 resoluções
-- **Primeiro `.exe` do projeto** — `mvn clean package` verde com 92 testes, e o
+- **Primeiro `.exe` do projeto** — `mvn clean package` verde com 98 testes, e o
   executável **abrindo** (`javaw.exe` no ar, janela `Jogo Snake`). É build
   verificado, não release: sem tag, sem publicação, sem push
+
+### Round 2 — o item 3 do backlog
+
+**`(b) intervaloMs` nas três dificuldades — 4 testes novos, e eles têm dentes**
+
+O helper `jogo()` fixava `MEDIO`, então os números de `FACIL` e `DIFICIL` não eram
+lidos por teste nenhum. Agora `em(dificuldade)` abre o jogo em qualquer uma das
+três, e o que se vê é o valor exato: 170 / 150 / 130 ms no início, caindo 4 / 5 /
+7 ms por nível, com o piso de 60 ms e o teto de nível 20.
+
+Cinco mutações, cada uma caindo pelo teste cujo nome é a regra quebrada:
+
+| Mutação | Testes que caem |
+|---|---|
+| trocar 170 ↔ 130 (fácil vira lenta, difícil vira fácil) | `oIntervaloInicialCaiComADificuldade`, `oIntervaloTemPisoDe60ms` |
+| `reducaoPorNivel` de `FACIL`: 4 → 5 | `cadaNivelReduzOIntervalo...`, `oIntervaloTemPisoDe60ms` |
+| **tirar o piso de 60 ms** | só `oIntervaloTemPisoDe60ms` |
+| `nivelMaximo`: 20 → 999 | `oNivelParaNoTeto`, `oIntervaloTemPisoDe60ms` |
+| `intervaloMs` ignorando o nível | 3 testes, incluindo o `comerSobeONivel...` que já existia |
+
+O piso de 60 ms é o que segura a última: em `DIFICIL` a conta sem piso dá
+`130 - 7*19 = -3`, e um `dt` negativo andaria a cobra para trás.
+
+**(a) Partida inteira — `JogoSnakeSoakTest`, 2 testes**
+
+20 000 passos de jogo de verdade, sem atalho: quando a partida acaba, outra começa
+com a semente seguinte. Semente fixa, então o soak é reprodutível. A cada passo
+são conferidos os invariantes — cabeça dentro do campo, **todos** os segmentos
+dentro do campo, cobra entre 2 e o total de células, nível em faixa, intervalo
+acima do piso, comida dentro do campo, e a cabeça nunca sobre o corpo enquanto a
+partida continua.
+
+O piloto é descartável e o próprio teste diz isso: ele existe só para a cobra não
+morrer no terceiro passo. Não verifica comportamento do piloto.
+
+**O quanto o soak realmente alcança** (medido, não torcido):
+
+| | parede que mata | parede que dá volta |
+|---|---|---|
+| passos | 20 000 | 20 000 |
+| partidas encadeadas | 20 | 18 |
+| maior nível | **20** (o teto) | **20** (o teto) |
+| maior comprimento | **92** | **99** |
+| passos com poder ativo | 1 536 | 1 374 |
+
+Nenhum teste de caso fixo chega em nível 20 nem em cobra de 90 segmentos. É
+cobertura de espaço de estados, não de mutação.
+
+**O soak não achou bug, e é preciso dizer.** Cinco mutações no núcleo foram
+tentadas contra ele:
+
+| Mutação | Pego pelo soak? | Pego por quem |
+|---|---|---|
+| S1 desligar a colisão com o corpo | sim | `baterNoCorpoTerminaAPartida` também pegava |
+| S3 tirar o teto do nível | sim | `oNivelParaNoTeto` também pegava |
+| S2 desligar a morte na parede | **não** | `aParedeMataQuandoABordaE_morre` pega |
+| S4 deixar a cobra encolher abaixo de 2 | **não** | `encurtarNuncaDeixaMenosDeDoisSegmentos` pega |
+| S5 fazer o poder não expirar | **não** | um teste de expiração pega |
+
+Ou seja: **para as cinco mutações testadas, a suíte de casos fixos já pegava
+tudo.** O soak não traz nenhum kill exclusivo — o que ele acrescenta é percorrer
+as sequências longas. S2 e S4 escapam porque o piloto é bom demais: ele não
+encosta na parede nem se atropela, então a variante quebrada simplesmente nunca
+chega a ser exercitada. Isso é limite do piloto, não buraco na suíte.
+
+**Um erro meu que vale registrar**: a primeira versão do harness de mutação
+reportou "5 mutações, 2 testes caem" para todas — o mesmo par, sempre. Era falso.
+O Maven não estava rodando (o `bash` do `PATH` do Python é o relay do WSL, que
+não está instalado), e o harness lia o XML de uma execução anterior. Só apareceu
+porque as cinco linhas eram idênticas, o que é impossível para mutações
+diferentes. **Harness que não confere o código de retorno mente com confiança.**
 
 ### Bugs reais que os testes acharam (e que a leitura não pegaria)
 
@@ -341,13 +415,13 @@ mentia.
 
 | | Pong | Snake |
 |---|---|---|
-| Testes | 180 | **92** |
+| Testes | 180 | **98** |
 | Testes em `ui` | 27 (só o `BotaosTest`) | **44** (24 de layout + 13 de pixels + 7 do ícone) |
 | Classes de `core` sem teste | — | `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder`, `RegistroDeRecordes` |
 | Bugs reais achados por teste | 2 (o hover e o prêmio congelado, ambos na 1.0.1) | **5** (4 por teste de regra, 1 por teste de pixel) |
 | Linha de comando | — | `/c/Users/dudu2/.m2/wrapper/dists/apache-maven-3.9.11/d6d3cbd4012d4c1d840e93277aca316c/bin/mvn` (o `mvn` não está no `PATH`) |
 
-A coluna do Pong é a da `v1.0.1`. A do Snake é depois do item 2, e **92 testes não
-são 92 de cobertura**: `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder` e
+A coluna do Pong é a da `v1.0.1`. A do Snake é depois do item 2, e **98 testes não
+são 98 de cobertura**: `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder` e
 `RegistroDeRecordes` continuam sem teste próprio, e são classes cujas regras o
 `JogoSnake` só usa por inteiro.
