@@ -301,7 +301,18 @@ public class SonsTest {
             clip.open(AudioSystem.getAudioInputStream(
                     new BufferedInputStream(new ByteArrayInputStream(dados))));
             clip.start();
-            Thread.sleep(150); // o som dura 90 ms; 150 cobre com folga
+            // Esperar a condicao, em vez de presumir uma duracao. O teste
+            // falhava de forma intermitente no suite completo e nunca isolado: o
+            // "Thread.sleep(150)"ecom o argumento de que o som dura 90 ms estava
+            // errado por construcao. Se o som acaba em 90 ms, aos 150 ms ele ja
+            // terminou, e "ja terminou" nao e a mesma coisa que "o mixer consumiu
+            // um quadro" -- sao coisas diferentes, e sob carga de 161 testes o
+            // thread do mixer as vezes nao e agendado a tempo. A asercao continua
+            // sendo a mesma; o que muda e que ela espera em vez de adivinhar.
+            long limite = System.nanoTime() + 2_000_000_000L;
+            while (clip.getFramePosition() <= 0 && System.nanoTime() < limite) {
+                Thread.sleep(10);
+            }
             assertTrue("a placa nao tocou nenhum quadro",
                     clip.getFramePosition() > 0);
         } catch (LineUnavailableException semPlaca) {

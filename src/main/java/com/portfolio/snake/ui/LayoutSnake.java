@@ -43,14 +43,18 @@ public final class LayoutSnake {
 
     private static final int LARGURA_PADRAO = 720;
     private static final int ALTURA_PADRAO = 700;
-    private static final int COLUNAS_PADRAO = 20;
-    private static final int LINHAS_PADRAO = 20;
+    // A grade caiu de 20x20 para 16x16 para dar pixels ao segmento. A altura útil
+    // (460px) é o gargalo, não a largura (688px): a célula é o menor dos dois
+    // quocientes, então baixar a grade é o que aumenta o desenho, e 20 linhas
+    // deixavam a cobra com 17px — pequeno demais para a arte do Dedinho.
+    private static final int COLUNAS_PADRAO = 16;
+    private static final int LINHAS_PADRAO = 16;
     private static final int MARGEM_PADRAO = 16;
     private static final int HUD_PADRAO = 96;
     private static final int RODAPE_PADRAO = 72;
     private static final int FAIXA_TOPO_PADRAO = 40;
 
-    /** Cria o layout padrão: 720x700 com grade 20x20. */
+    /** Cria o layout padrão: 720x700 com grade 16x16. */
     public LayoutSnake() {
         this(LARGURA_PADRAO, ALTURA_PADRAO, COLUNAS_PADRAO, LINHAS_PADRAO,
                 MARGEM_PADRAO, HUD_PADRAO, RODAPE_PADRAO, FAIXA_TOPO_PADRAO);

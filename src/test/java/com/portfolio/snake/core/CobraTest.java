@@ -309,4 +309,89 @@ public class CobraTest {
         assertEquals(Direcao.ESQUERDA, cobra.getDirecao());
         assertEquals(0, cobra.tamanhoFila());
     }
+
+    // ------------------------------------------------------------------
+    // A cabeça e o rabo apontam para o lado certo
+    // ------------------------------------------------------------------
+
+    /**
+     * A cabeça aponta para onde a cobra está andando.
+     *
+     * <p><b>Este é o teste do bug 6.</b> O nome {@code CABECA_X} diz a direção para
+     * onde a cabeça vai, e {@link Cobra#formas()} entregava a direção para
+     * <i>trás</i> nos dois extremos do corpo: cabeça→pescoço. Uma cobra andando
+     * para a direita recebia {@code CABECA_ESQUERDA}. Os olhos de todas as skins
+     * vetoriais estavam virados desde o começo, e só a arte do Dedinho tornou o
+     * defeito visível.
+     *
+     * <p>Nenhum teste afirmava isso antes: o único que olhava {@code formas()} usava
+     * {@code ehCanto()}, e canto não muda com a inversão. Era a classe com mais
+     * teste do projeto no eixo errado.
+     *
+     * <p>O caminho é uma espiral de quatro lados, porque virar 180° é recusado pela
+     * regra de fila e um cenário degenerado esconderia o defeito em vez de
+     * mostrá-lo.
+     */
+    @Test
+    public void aCabecaApontaParaOndeACobraAnda() {
+        Cobra cobra = novaCobra(40);
+        assertCabeca(cobra, Direcao.DIREITA, Forma.CABECA_DIREITA);
+
+        viraPara(cobra, Direcao.BAIXO);
+        assertCabeca(cobra, Direcao.BAIXO, Forma.CABECA_BAIXO);
+
+        viraPara(cobra, Direcao.ESQUERDA);
+        assertCabeca(cobra, Direcao.ESQUERDA, Forma.CABECA_ESQUERDA);
+
+        viraPara(cobra, Direcao.CIMA);
+        assertCabeca(cobra, Direcao.CIMA, Forma.CABECA_CIMA);
+    }
+
+    /**
+     * O rabo tem a ponta livre virada para fora do corpo.
+     *
+     * <p>A mesma inversão do bug 6 atingia o rabo pelo outro lado: {@code RABO_X} é
+     * a direção da ponta, e a ponta livre fica do lado oposto ao do corpo.
+     *
+     * <p>A expectativa é montada aqui com uma tabela escrita à mão de propósito.
+     * Derivá-la de {@link Forma} seria circular — o teste passaria com o defeito
+     * presente, porque repetiria a mesma conta que ele errou. A tabela é a
+     * afirmação independente de como o rabo deve ficar.
+     */
+    @Test
+    public void oRaboApontaParaForaDoCorpo() {
+        Cobra cobra = novaCobra(40);
+        Celula rabo = cobra.rabo();
+        Celula vizinho = cobra.segmento(cobra.tamanho() - 2);
+
+        // de onde o rabo vem, ou seja, o lado em que o corpo esta
+        int dx = Integer.compare(vizinho.getX(), rabo.getX());
+        int dy = Integer.compare(vizinho.getY(), rabo.getY());
+        Forma esperado;
+        if (dx > 0) {
+            esperado = Forma.RABO_ESQUERDA;
+        } else if (dx < 0) {
+            esperado = Forma.RABO_DIREITA;
+        } else if (dy > 0) {
+            esperado = Forma.RABO_CIMA;
+        } else {
+            esperado = Forma.RABO_BAIXO;
+        }
+
+        assertEquals("a ponta livre do rabo tem de ficar do lado oposto ao corpo",
+                esperado, cobra.formas().get(cobra.tamanho() - 1));
+    }
+
+    private static void viraPara(Cobra cobra, Direcao destino) {
+        for (int i = 0; i < 5; i++) {
+            cobra.moverPara(destino, false);
+        }
+    }
+
+    private static void assertCabeca(Cobra cobra, Direcao andando, Forma esperado) {
+        assertEquals("a direcao da cobra nao e a que o testeMandou",
+                andando, cobra.getDirecao());
+        assertEquals("a cabeca aponta para tras",
+                esperado, cobra.formas().get(0));
+    }
 }
