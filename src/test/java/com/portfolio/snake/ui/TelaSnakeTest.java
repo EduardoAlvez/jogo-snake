@@ -187,6 +187,112 @@ public class TelaSnakeTest {
     }
 
     // ------------------------------------------------------------------
+// A tela de fim tambem tem botao
+// ------------------------------------------------------------------
+
+    /**
+     * A reclamacao que motivou estes testes: no fim da partida a tela ficava sem
+     * botão nenhum, e o jogador só tinha o teclado.
+     *
+     * <p>Antes desta Mudança o registro ficava zerado em todo quadro, e como a
+     * tela de fim não desenhava botão nenhum o clique não tinha onde cair.</p>
+     */
+    @Test
+    public void aTelaDeFimRegistraOsDoisBotoes() {
+        TelaSnake emFim = new TelaSnake(partidaEncerrada(), layout);
+        try {
+            DesenhoJogo desenho = emFim.getDesenho();
+            pintar(desenho, emFim.getJogo());
+
+            assertEquals("a tela de fim tem que registrar os dois botao",
+                    2, desenho.getBotaos().tamanho());
+        } finally {
+            emFim.pararRelogio();
+            emFim.dispose();
+        }
+    }
+
+    /**
+     * Jogar de novo tem que entrar na partida, e não só redesenhar.
+     *
+     * <p>Este é o teste que pega a armadilha do {@code iniciar}: ele só sai do
+     * estado pausado, então um botão que só chamasse "começar" numa partida já
+     * morta seria um botão que não faz nada — e passaria num teste que só
+     * contasse que o clique chegou ao desenho.</p>
+     */
+    @Test
+    public void jogarDeNovoNoFimComecaUmaPartidaCorrendo() {
+        TelaSnake emFim = new TelaSnake(partidaEncerrada(), layout);
+        try {
+            DesenhoJogo desenho = emFim.getDesenho();
+            pintar(desenho, emFim.getJogo());
+            clicarNoFim(desenho, LayoutSnake.Alvo.JOGAR_DE_NOVO);
+
+            assertEquals("jogar de novo tem que comecar a partida na hora",
+                    JogoSnake.Estado.JOGANDO, emFim.getJogo().getEstado());
+            assertEquals("e a pontuacao tem que estar zerada",
+                    0, emFim.getJogo().getPontos());
+            assertFalse("a partida nova nao pode nascer no menu",
+                    emFim.getJogo().noInicio());
+        } finally {
+            emFim.pararRelogio();
+            emFim.dispose();
+        }
+    }
+
+    @Test
+    public void voltarAoMenuNoFimDevolveAMenu() {
+        TelaSnake emFim = new TelaSnake(partidaEncerrada(), layout);
+        try {
+            DesenhoJogo desenho = emFim.getDesenho();
+            pintar(desenho, emFim.getJogo());
+            clicarNoFim(desenho, LayoutSnake.Alvo.VOLTAR_AO_MENU);
+
+            assertTrue("o botao de menu inicial tem que devolver o jogador ao menu",
+                    emFim.getJogo().noInicio());
+            assertEquals("e sem comecar a partida",
+                    JogoSnake.Estado.PAUSADO, emFim.getJogo().getEstado());
+        } finally {
+            emFim.pararRelogio();
+            emFim.dispose();
+        }
+    }
+
+    /**
+     * A decisão que separou os dois botões.
+     *
+     * <p>Existe um caminho curto para os dois virarem a mesma coisa: tanto
+     * recomeçar quanto ir para o menu terminam em {@code reiniciar()}, porque
+     * reiniciar deixa a partida pausada com zero ponto — que é o estado do menu.
+     * Um botão de cada lado da tela fazendo a mesma coisa é pior do que um botão
+     * só, então este teste existe para travar a diferença.</p>
+     */
+    @Test
+    public void osDoisBotoesDaTelaDeFimFazemCoisasDiferentes() {
+        TelaSnake jogando = new TelaSnake(partidaEncerrada(), layout);
+        TelaSnake noMenu = new TelaSnake(partidaEncerrada(), layout);
+        try {
+            DesenhoJogo dJogando = jogando.getDesenho();
+            pintar(dJogando, jogando.getJogo());
+            clicarNoFim(dJogando, LayoutSnake.Alvo.JOGAR_DE_NOVO);
+
+            DesenhoJogo dMenu = noMenu.getDesenho();
+            pintar(dMenu, noMenu.getJogo());
+            clicarNoFim(dMenu, LayoutSnake.Alvo.VOLTAR_AO_MENU);
+
+            assertEquals("jogar de novo tem que estar correndo",
+                    JogoSnake.Estado.JOGANDO, jogando.getJogo().getEstado());
+            assertTrue("voltar ao menu tem que estar no menu",
+                    noMenu.getJogo().noInicio());
+        } finally {
+            jogando.pararRelogio();
+            jogando.dispose();
+            noMenu.pararRelogio();
+            noMenu.dispose();
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Apoio
     // ------------------------------------------------------------------
 
@@ -194,6 +300,25 @@ public class TelaSnakeTest {
         return new JogoSnake(
                 new Campo(layout.getColunas(), layout.getLinhas(), Campo.Borda.MORRE),
                 JogoSnake.Dificuldade.MEDIO, 42L);
+    }
+
+    /**
+     * Uma partida que já acabou, do jeito mais simples possível.
+     *
+     * <p>Basta não virar: com a borda que mata a cobra segue em frente e morre na
+     * parede. Não há perseguição à comida aqui porque esta partida só precisa
+     * chegar ao estado {@code FIM} — quem precisa de pontos é o teste do recorde,
+     * e esse mora no desenho.</p>
+     */
+    private JogoSnake partidaEncerrada() {
+        JogoSnake j = partida();
+        j.iniciar();
+        for (int i = 0; i < 500 && j.getEstado() == JogoSnake.Estado.JOGANDO; i++) {
+            j.passo(0.2);
+        }
+        assertEquals("a partida deste teste tem que ter acabado",
+                JogoSnake.Estado.FIM, j.getEstado());
+        return j;
     }
 
     private void pintar(DesenhoJogo desenho, JogoSnake jogo) {
@@ -209,6 +334,11 @@ public class TelaSnakeTest {
 
     private void clicar(DesenhoJogo desenho, LayoutSnake.Alvo botao) {
         Rectangle r = layout.menu().retangulo(botao);
+        desenho.getBotaos().acionar(r.x + r.width / 2, r.y + r.height / 2);
+    }
+
+    private void clicarNoFim(DesenhoJogo desenho, LayoutSnake.Alvo botao) {
+        Rectangle r = layout.fim().retangulo(botao);
         desenho.getBotaos().acionar(r.x + r.width / 2, r.y + r.height / 2);
     }
 

@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
 
     <name>Jogo Snake - Portfolio Java</name>
-    <description>Snake do portfolio: cobra em grade 16x16, borda que mata ou dá a volta, dois poderes, quatro skins (tres vetoriais e o Dedinho em sprites) e recorde gravado em disco. Java 17 e Swing, sem dependencias de execucao; 221 testes com JUnit + Surefire + JaCoCo</description>
+    <description>Snake do portfolio: cobra em grade 16x16, borda que mata ou dá a volta, dois poderes, quatro skins (tres vetoriais e o Dedinho em sprites) e recorde gravado em disco. Java 17 e Swing, sem dependencias de execucao; 231 testes com JUnit + Surefire + JaCoCo</description>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>

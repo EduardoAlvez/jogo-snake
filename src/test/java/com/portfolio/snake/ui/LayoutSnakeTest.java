@@ -1,6 +1,8 @@
 package com.portfolio.snake.ui;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.awt.Rectangle;
@@ -285,5 +287,100 @@ public class LayoutSnakeTest {
     @Test(expected = IllegalArgumentException.class)
     public void gradeMinusculaEhRecusada() {
         new LayoutSnake(720, 700, 2, 2, 16, 96, 72, 40);
+    }
+
+    // ------------------------------------------------------------------
+    // A tela de fim: dois botoes e nenhum texto por cima deles
+    // ------------------------------------------------------------------
+
+    /**
+     * Dois, escritos à mão: são os botões que o jogador vê quando a partida
+     * acaba. Um botão que sumisse da geometria tem de quebrar um teste, senão
+     * volta como relato depois de rodar o jogo.
+     */
+    @Test
+    public void aTelaDeFimTemOsDoisBotoes() {
+        LayoutSnake.Fim fim = padrao().fim();
+        assertEquals("a tela de fim tem dois botao", 2, fim.tamanho());
+        assertNotNull("falta o botao de jogar de novo",
+                fim.retangulo(LayoutSnake.Alvo.JOGAR_DE_NOVO));
+        assertNotNull("falta o botao de menu inicial",
+                fim.retangulo(LayoutSnake.Alvo.VOLTAR_AO_MENU));
+    }
+
+    /**
+     * O mesmo defeito do menu, na tela de fim.
+     *
+     * <p>No menu os rótulos nasceram dentro da faixa do botão e desapareceram
+     * atrás do preenchimento. Como a tela de fim tem seis faixas de texto e só
+     * dois botões, é ainda mais fácil errar a conta — e é por isso que a
+     * conferência é geométrica e não visual.</p>
+     */
+    @Test
+    public void nenhumTextoDaTelaDeFimFicaEmCimaDeUmBotao() {
+        LayoutSnake.Fim fim = padrao().fim();
+        Rectangle[] textos = {fim.titulo, fim.subtitulo, fim.pontos, fim.detalhe,
+            fim.recorde, fim.dica};
+        for (Rectangle t : textos) {
+            for (Rectangle b : fim.retangulos) {
+                assertFalse("o texto " + t + " invade o botao " + b, t.intersects(b));
+            }
+        }
+    }
+
+    @Test
+    public void osDoisBotoesDaTelaDeFimNaoSeSobrepoem() {
+        LayoutSnake.Fim fim = padrao().fim();
+        for (int i = 0; i < fim.retangulos.size(); i++) {
+            for (int j = i + 1; j < fim.retangulos.size(); j++) {
+                assertFalse("os dois botoes da tela de fim estao no mesmo lugar",
+                        fim.retangulos.get(i).intersects(fim.retangulos.get(j)));
+            }
+        }
+    }
+
+    @Test
+    public void tudoDaTelaDeFimCabeNoPainel() {
+        LayoutSnake.Fim fim = padrao().fim();
+        Rectangle[] partes = {fim.titulo, fim.subtitulo, fim.pontos, fim.detalhe,
+            fim.recorde, fim.dica};
+        for (Rectangle r : partes) {
+            assertTrue("a parte " + r + " saiu do painel", fim.painel.contains(r));
+        }
+        for (Rectangle b : fim.retangulos) {
+            assertTrue("o botao " + b + " saiu do painel", fim.painel.contains(b));
+        }
+    }
+
+    @Test
+    public void osBotoesDaTelaDeFimSobrevivemAUmaJanelaMenorQueOPainel() {
+        LayoutSnake pequena = new LayoutSnake(300, 300, 16, 16, 16, 96, 72, 40);
+        LayoutSnake.Fim fim = pequena.fim();
+        for (Rectangle b : fim.retangulos) {
+            assertTrue("o botao " + b + " saiu do painel numa janela pequena",
+                    fim.painel.contains(b));
+        }
+    }
+
+    /**
+     * O selo de novo recorde aparece só em parte das partidas, e mesmo assim o
+     * botão não pode mudar de lugar.
+     *
+     * <p>A geometria não recebe o resultado da partida, e é essa a garantia: se
+     * algum dia os botões passarem a depender do selo, o jogador que bater o
+     * recorde receberia o clique num ponto diferente do que viu no quadro
+     * anterior.</p>
+     */
+    @Test
+    public void osBotoesDaTelaDeFimNaoDependemDoSeloDeRecorde() {
+        LayoutSnake.Fim fim = padrao().fim();
+        Rectangle[] textos = {fim.titulo, fim.subtitulo, fim.pontos, fim.detalhe,
+            fim.dica};
+        for (Rectangle b : fim.retangulos) {
+            for (Rectangle t : textos) {
+                assertFalse("sem o selo de recorde o botao " + b + " ja tocaria "
+                        + "o texto " + t, t.intersects(b));
+            }
+        }
     }
 }

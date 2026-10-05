@@ -698,15 +698,15 @@ invisível.
 
 | | Pong | Snake |
 |---|---|---|
-| Testes | 180 | **221** |
-| Testes em `ui` | 27 (só o `BotaosTest`) | **108** (24 de layout + 28 de pixels + 7 do ícone + 25 de botão + 13 de menu + 7 da janela) |
+| Testes | 180 | **231** |
+| Testes em `ui` | 27 (só o `BotaosTest`) | **118** (30 de layout + 28 de pixels + 7 do ícone + 25 de botão + 13 de menu + 11 da janela) |
 | Classes de `core` sem teste | — | `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder`, `RegistroDeRecordes` |
 | Bugs reais achados por teste | 2 (o hover e o prêmio congelado, ambos na 1.0.1) | **9** (4 por teste de regra, 1 por teste de pixel, 4 pelos testes do menu) |
 | Bugs achados por validação visual | 0 | **2** (a cabeça e o rabo para trás, bug 6; e os rótulos do menu debaixo dos botões) |
 | Linha de comando | — | `/c/Users/dudu2/.m2/wrapper/dists/apache-maven-3.9.11/d6d3cbd4012d4c1d840e93277aca316c/bin/mvn` (o `mvn` não está no `PATH`) |
 
-A coluna do Pong é a da `v1.0.1`. A do Snake é depois do item 6, e **221 testes não
-são 221 de cobertura**: `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder` e
+A coluna do Pong é a da `v1.0.1`. A do Snake é depois do item 6, e **231 testes não
+são 231 de cobertura**: `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder` e
 `RegistroDeRecordes` continuam sem teste próprio, e são classes cujas regras o
 `JogoSnake` só usa por inteiro.
 
@@ -792,3 +792,70 @@ proibem um rotulo de intersectar um botao.
 
 **Verificado por execução**: 221 testes verdes, `BUILD SUCCESS`,
 `target/jogo-snake.exe` gerado.
+
+## A tela de fim ganha botao, e o texto que mentia
+
+Faltava o botao no fim da partida. O registro e por quadro e a tela de fim nao
+desenhava nenhum, entao o clique nao tinha onde cair: so o teclado servia.
+
+Antes de codar, uma leitura respondeu por que "recomecar" e "voltar ao menu"
+seriam o mesmo botao. `reiniciar()` deixa a partida em `PAUSADO` com ponto zero e
+passo zero, que e exatamente o estado do menu — `noInicio()`. Logo os dois verbos
+levavam ao mesmo lugar, e dois botoes iguais na mesma tela e pior que um botao so.
+
+### A armadilha do `iniciar`
+
+`JogoSnake.iniciar()` so sai do estado pausado:
+
+```java
+public void iniciar() {
+    if (estado == Estado.PAUSADO) {
+        estado = Estado.JOGANDO;
+    }
+}
+```
+
+O botao "jogar de novo" na tela de fim nao podia se limitar a chamar `comecar`:
+a partida esta morta, `iniciar()` nao faria nada, e o botao seria um botao que
+nao faz nada. O caminho e sempre dois passos — `reiniciar` e depois `comecar` —
+e por isso `jogarDeNovo` existe separado no contrato, com o `comecar` de antes
+intacto para o menu, onde a partida ainda esta pausada.
+
+`Enter` na tela de fim sofre o mesmo vacuo e nao foi mexido: `comecarPartida`
+chama `iniciar()`, que nao sai de `FIM`. E um no-op inofensivo, e nao um defeito
+de tela — mexer nisso mudaria o que `Enter` faz no menu sem ninguem pedir.
+
+O `[R]` continua voltando ao menu como no resto do jogo. O texto da tela dizia
+"[R] jogar de novo", e isso nunca foi verdade: `R` vai para o menu. O texto passou
+a dizer "[R] menu", que e o que a tecla faz. Nenhuma tecla mudou de sentido.
+
+### Onde a geometria do texto estava
+
+`desenharFim` posicionava as seis faixas de texto com numeros magicos dentro do
+`paintComponent` (`p.y + 26`, `p.y + 64`, `p.y + 100`...), e e o mesmo defeito dos
+rotulos do menu: posicao nascendo na pintura e invisivel para qualquer teste.
+Virou `LayoutSnake.Fim`, com painel, seis faixas e os dois botoes, e `fim()` faz
+o mesmo clamp que `menu()`. `Menu` e `Fim` implementam `LayoutSnake.Alvos` para
+que o desenho registre botao nas duas telas sem duplicar o corpo — duplicar era
+exatamente como a troca de skin conseguiu dar um pintor sem acoes.
+
+A posicao dos botoes nao depende de ter ou nao recorde. Se dependesse, quem
+acabasse de bater o recorde receberia o clique num ponto diferente do que viu no
+quadro anterior.
+
+### O teste de pixel que nao podia falhar
+
+A mutacao "o selo de recorde some da faixa" **nao caiu**, e o motivo e o bom.
+
+O selo "NOVO RECORDE" e dourado. O **titulo** da tela de fim tambem: quando ha
+recorde novo, `centralizar(..., novoRecorde ? DESTAQUE : TEXTO)`. Os tres testes
+do selo procuravam o dourado no painel inteiro, entao passavam por causa do
+titulo — apagando a linha inteira que desenha o selo, seguiam verdes. Um teste que
+nao distingue o que verifica.
+
+Corrigido com `faixaDoSelo()`, que devolve `layout.fim().recorde`: a regiao passa
+a ser a faixa do selo, que e o que separa as duas coisas. A mutacao agora cai, e
+tambem cai quando o selo e desenhado na faixa errada.
+
+**Verificado por execucao**: 231 testes verdes, `BUILD SUCCESS` e
+`target/jogo-snake.exe` gerado. Oito mutacoes aplicadas uma a uma; as oito caem.

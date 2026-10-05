@@ -480,7 +480,7 @@ public final class DesenhoJogo {
      *
      * @param selecionado se o botão mostra a opção em vigor
      */
-    private void botao(Graphics2D g2, LayoutSnake.Menu menu, LayoutSnake.Alvo alvo,
+    private void botao(Graphics2D g2, LayoutSnake.Alvos menu, LayoutSnake.Alvo alvo,
             String texto, boolean selecionado, JogoSnake jogo) {
         Rectangle r = menu.retangulo(alvo);
         if (r == null) {
@@ -521,6 +521,10 @@ public final class DesenhoJogo {
                 return acoes::trocarSkin;
             case RECOMEÇAR:
                 return acoes::recomecar;
+            case JOGAR_DE_NOVO:
+                return acoes::jogarDeNovo;
+            case VOLTAR_AO_MENU:
+                return acoes::voltarAoMenu;
             default:
                 return () -> { };
         }
@@ -572,24 +576,30 @@ public final class DesenhoJogo {
      */
     private void desenharFim(Graphics2D g2, JogoSnake jogo, String titulo, String subtitulo,
             boolean novoRecorde) {
-        Rectangle p = layout.painel(440, 260);
-        painelFundo(g2, p);
-        centralizar(g2, titulo, new Rectangle(p.x, p.y + 26, p.width, 34),
+        LayoutSnake.Fim fim = layout.fim();
+        painelFundo(g2, fim.painel);
+        centralizar(g2, titulo, fim.titulo,
                 fonte(24, Font.BOLD), novoRecorde ? DESTAQUE : TEXTO);
-        centralizar(g2, subtitulo, new Rectangle(p.x, p.y + 64, p.width, 20),
+        centralizar(g2, subtitulo, fim.subtitulo,
                 fonte(13, Font.PLAIN), TEXTO_FRACO);
         centralizar(g2, "Pontos: " + jogo.getPontos() + "      Recorde: "
                         + Math.max(jogo.getRecorde(), jogo.getPontos()),
-                new Rectangle(p.x, p.y + 100, p.width, 28), fonte(18, Font.BOLD), TEXTO);
+                fim.pontos, fonte(18, Font.BOLD), TEXTO);
         centralizar(g2, "Tamanho máximo: " + jogo.getMaiorComprimento()
                         + "      Comidas: " + jogo.getComidas(),
-                new Rectangle(p.x, p.y + 130, p.width, 20), fonte(12, Font.PLAIN), TEXTO_FRACO);
+                fim.detalhe, fonte(12, Font.PLAIN), TEXTO_FRACO);
         if (novoRecorde) {
-            centralizar(g2, "NOVO RECORDE", new Rectangle(p.x, p.y + 160, p.width, 26),
+            centralizar(g2, "NOVO RECORDE", fim.recorde,
                     fonte(15, Font.BOLD), DESTAQUE);
         }
-        centralizar(g2, "[R] jogar de novo      [Esc] sair",
-                new Rectangle(p.x, p.y + 200, p.width, 20), fonte(12, Font.PLAIN), TEXTO_FRACO);
+
+        // Os dois botões nascem aqui, como no menu: é a pintura que reconstrói a
+        // lista a cada quadro, e por isso o hover se mantém pela geometria.
+        botao(g2, fim, LayoutSnake.Alvo.JOGAR_DE_NOVO, "Jogar de novo", false, jogo);
+        botao(g2, fim, LayoutSnake.Alvo.VOLTAR_AO_MENU, "Menu inicial", false, jogo);
+
+        centralizar(g2, "[R] menu      [Esc] sair",
+                fim.dica, fonte(12, Font.PLAIN), TEXTO_FRACO);
     }
 
     private void painelFundo(Graphics2D g2, Rectangle p) {

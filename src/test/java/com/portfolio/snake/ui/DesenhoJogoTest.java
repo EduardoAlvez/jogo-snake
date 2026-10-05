@@ -418,20 +418,18 @@ public class DesenhoJogoTest {
     public void oSeloDeNovoRecordeApareceQuandoInformado() {
         JogoSnake jogo = jogoEncerrado();
         BufferedImage img = pintar(jogo, true);
-        Rectangle painel = layout.painel(440, 260);
 
         assertTrue("o selo de novo recorde não foi desenhado",
-                existePixelProximo(img, painel, DesenhoJogo.DESTAQUE, TOLERANCIA));
+                existePixelProximo(img, faixaDoSelo(), DesenhoJogo.DESTAQUE, TOLERANCIA));
     }
 
     @Test
     public void oSeloDeNovoRecordeNaoApareceQuandoNaoFoiBatido() {
         JogoSnake jogo = jogoEncerrado();
         BufferedImage img = pintar(jogo, false);
-        Rectangle painel = layout.painel(440, 260);
 
         assertFalse("o selo de novo recorde apareceu sem ter sido batido",
-                existePixelProximo(img, painel, DesenhoJogo.DESTAQUE, TOLERANCIA));
+                existePixelProximo(img, faixaDoSelo(), DesenhoJogo.DESTAQUE, TOLERANCIA));
     }
 
     /**
@@ -446,12 +444,11 @@ public class DesenhoJogoTest {
     @Test
     public void oSeloNaoDesapareceRepintandoVariasVezes() {
         JogoSnake jogo = jogoEncerrado();
-        Rectangle painel = layout.painel(440, 260);
 
         for (int i = 0; i < 10; i++) {
             BufferedImage img = pintar(jogo, true);
             assertTrue("o selo sumiu na repinturação número " + i,
-                    existePixelProximo(img, painel, DesenhoJogo.DESTAQUE, TOLERANCIA));
+                    existePixelProximo(img, faixaDoSelo(), DesenhoJogo.DESTAQUE, TOLERANCIA));
         }
     }
 
@@ -633,6 +630,20 @@ public class DesenhoJogoTest {
     private static boolean existePixelProximo(BufferedImage img, Rectangle r, Color alvo,
             int tolerancia) {
         return contarPixels(img, r, alvo.getRGB(), tolerancia) > 0;
+    }
+
+    /**
+     * A faixa onde o selo "NOVO RECORDE" é desenhado, e nada mais.
+     *
+     * <p>Estes testes procuravam o dourado no painel inteiro, e aí está o furo: o
+     * <b>título</b> da tela de fim também é dourado quando há recorde novo. O
+     * teste do selo passava por causa do título — apagando a linha inteira que
+     * desenha o selo, ele continuava verde. Foi o que a mutação "o selo de
+     * recorde some da faixa" mostrou, e ela só aparece quando a região é a faixa
+     * do selo, porque é ela que separa as duas coisas.</p>
+     */
+    private Rectangle faixaDoSelo() {
+        return layout.fim().recorde;
     }
 
     /**

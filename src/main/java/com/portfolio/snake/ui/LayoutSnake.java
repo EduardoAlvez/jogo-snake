@@ -285,8 +285,7 @@ public final class LayoutSnake {
     // ------------------------------------------------------------------
 
     /** O que um botão do menu representa, e não a sua posição. */
-    public enum Alvo {
-        /** A parede mata, ou a cobra dá a volta. */
+    public enum Alvo {        /** A parede mata, ou a cobra dá a volta. */
         BORDA_MATA, BORDA_WRAP,
         /** As três dificuldades. */
         FACIL, MEDIO, DIFICIL,
@@ -295,11 +294,32 @@ public final class LayoutSnake {
         /** Passa para a próxima skin. */
         TROCAR_SKIN,
         /** Recomeça do zero. */
-        RECOMEÇAR
+        RECOMEÇAR,
+        /** Zera a partida e entra nela. Só existe na tela de fim. */
+        JOGAR_DE_NOVO,
+        /** Volta ao menu inicial. Só existe na tela de fim. */
+        VOLTAR_AO_MENU
+    }
+
+    /**
+     * O que o menu e a tela de fim têm em comum: saber o retângulo de um alvo.
+     *
+     * <p>Existe para que o desenho possa registrar botão nas duas telas sem repetir
+     * o corpo. Sem isto haveria um método por tela, e o segundo nasceria copiando o
+     * primeiro — que é como a troca de skin conseguiu dar um pintor sem ações.</p>
+     */
+    public interface Alvos {
+        /**
+         * O retângulo de um alvo.
+         *
+         * @param alvo o alvo procurado
+         * @return o retângulo, ou {@code null} se o alvo não está nesta tela
+         */
+        Rectangle retangulo(Alvo alvo);
     }
 
     /** O painel do menu, com os retângulos dos botões dentro dele. */
-    public static final class Menu {
+    public static final class Menu implements Alvos {
         /** O painel de fundo, o mesmo que {@link #painelFundo} pinta. */
         public final Rectangle painel;
         /** Os botões, na ordem de leitura: cima primeiro. */
@@ -335,6 +355,71 @@ public final class LayoutSnake {
          *
          * @param alvo o alvo procurado
          * @return o retângulo, ou {@code null} se o alvo não está neste menu
+         */
+        public Rectangle retangulo(Alvo alvo) {
+            for (int i = 0; i < alvos.size(); i++) {
+                if (alvos.get(i) == alvo) {
+                    return retangulos.get(i);
+                }
+            }
+            return null;
+        }
+
+        /** @return o número de botões */
+        public int tamanho() {
+            return alvos.size();
+        }
+    }
+
+    /**
+     * A tela de fim de partida: o painel, as faixas de texto e os dois botões.
+     *
+     * <p>Mesma ideia do {@link Menu}, e pelo mesmo motivo: as faixas de texto
+     * vivem aqui para que um teste sem display possa perguntar se o texto invade o
+     * botão. Na tela de fim o texto é o que mais aperta o espaço — o selo de novo
+     * recorde ocupa uma faixa que não existe nas demais partidas — e um texto
+     * dibujado por número mágico dentro do {@code paintComponent} só voltaria como
+     * relato de bug depois de rodar o jogo.</p>
+     */
+    public static final class Fim implements Alvos {
+        /** O painel de fundo, o mesmo que o menu usa. */
+        public final Rectangle painel;
+        /** O motivo da derrota, ou o título de vitória. */
+        public final Rectangle titulo;
+        /** A linha que explica o título. */
+        public final Rectangle subtitulo;
+        /** A linha de pontos e recorde. */
+        public final Rectangle pontos;
+        /** A linha de tamanho máximo e comidas. */
+        public final Rectangle detalhe;
+        /** O selo de novo recorde, que só aparece quando há recorde. */
+        public final Rectangle recorde;
+        /** A dica de atalhos, no pé do painel. */
+        public final Rectangle dica;
+        /** Os dois botões, na ordem de leitura. */
+        public final List<Alvo> alvos;
+        /** O retângulo de cada alvo, na mesma ordem de {@link #alvos}. */
+        public final List<Rectangle> retangulos;
+
+        Fim(Rectangle painel, Rectangle titulo, Rectangle subtitulo, Rectangle pontos,
+                Rectangle detalhe, Rectangle recorde, Rectangle dica,
+                List<Alvo> alvos, List<Rectangle> retangulos) {
+            this.painel = painel;
+            this.titulo = titulo;
+            this.subtitulo = subtitulo;
+            this.pontos = pontos;
+            this.detalhe = detalhe;
+            this.recorde = recorde;
+            this.dica = dica;
+            this.alvos = alvos;
+            this.retangulos = retangulos;
+        }
+
+        /**
+         * O retângulo de um alvo.
+         *
+         * @param alvo o alvo procurado
+         * @return o retângulo, ou {@code null} se o alvo não está nesta tela
          */
         public Rectangle retangulo(Alvo alvo) {
             for (int i = 0; i < alvos.size(); i++) {
@@ -424,6 +509,51 @@ public final class LayoutSnake {
         return new Menu(p, alvos, rs, dentroDoPainel(titulo, p),
                 dentroDoPainel(subtitulo, p), dentroDoPainel(rotBorda, p),
                 dentroDoPainel(rotDif, p), dentroDoPainel(dica, p));
+    }
+
+    /**
+     * A geometria da tela de fim: faixas de texto e os dois botões.
+     *
+     * <p>A altura do botão é fixa e a posição dos botões não depende de ter ou não
+     * recorde: se os botões subissem quando o selo aparecesse, o jogador que
+     * acabasse de bater o recorde receberia um clique num lugar diferente do que
+     * viu no quadro anterior. O selo ocupa faixa própria e os botões ficam onde
+     * estão, com ou sem ele.</p>
+     *
+     * @return a tela de fim pronta, com texto e botões dentro do painel
+     */
+    public Fim fim() {
+        Rectangle p = painel(440, 260);
+        List<Alvo> alvos = new ArrayList<>();
+        List<Rectangle> rs = new ArrayList<>();
+
+        int margem = 16;
+        int gap = 8;
+        int h = 34;
+        int x = p.x + margem;
+        int w = p.width - margem * 2;
+
+        Rectangle titulo = new Rectangle(p.x, p.y + 18, p.width, 32);
+        Rectangle subtitulo = new Rectangle(p.x, p.y + 54, p.width, 18);
+        Rectangle pontos = new Rectangle(p.x, p.y + 84, p.width, 28);
+        Rectangle detalhe = new Rectangle(p.x, p.y + 116, p.width, 18);
+        Rectangle recorde = new Rectangle(p.x, p.y + 140, p.width, 24);
+
+        int yBotao = p.y + 176;
+        int wBotao = (w - gap) / 2;
+        rs.add(new Rectangle(x, yBotao, wBotao, h));
+        alvos.add(Alvo.JOGAR_DE_NOVO);
+        rs.add(new Rectangle(x + wBotao + gap, yBotao, wBotao, h));
+        alvos.add(Alvo.VOLTAR_AO_MENU);
+
+        Rectangle dica = new Rectangle(x, p.y + 218, w, 18);
+
+        for (int i = 0; i < rs.size(); i++) {
+            rs.set(i, dentroDoPainel(rs.get(i), p));
+        }
+        return new Fim(p, dentroDoPainel(titulo, p), dentroDoPainel(subtitulo, p),
+                dentroDoPainel(pontos, p), dentroDoPainel(detalhe, p),
+                dentroDoPainel(recorde, p), dentroDoPainel(dica, p), alvos, rs);
     }
 
     /**

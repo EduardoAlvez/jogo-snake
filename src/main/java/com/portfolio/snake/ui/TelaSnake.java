@@ -239,6 +239,27 @@ public final class TelaSnake extends JFrame {
                 recordeBatido = false;
                 repaint();
             }
+
+            @Override
+            public void jogarDeNovo() {
+                // recomeçar e depois começar: na tela de fim a partida está
+                // morta, e iniciar() só sai do estado pausado — chamar só
+                // começar deixaria o botão sem efeito nenhum.
+                jogo.reiniciar();
+                recordeBatido = false;
+                comecarPartida();
+            }
+
+            @Override
+            public void voltarAoMenu() {
+                // volta ao menu já com a partida montada e parada. Montar de
+                // novo preservaria borda e dificuldade sem precisar reler os
+                // campos da partida, que é de onde o menu tira o que está em
+                // vigor.
+                jogo.reiniciar();
+                recordeBatido = false;
+                repaint();
+            }
         };
     }
 
