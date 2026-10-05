@@ -7,6 +7,9 @@ import com.portfolio.snake.core.Direcao;
 import com.portfolio.snake.core.Forma;
 import com.portfolio.snake.core.JogoSnake;
 import com.portfolio.snake.core.Poder;
+import com.portfolio.snake.skin.CatalogoSkins;
+import com.portfolio.snake.skin.Skin;
+import com.portfolio.snake.skin.SkinSprites;
 
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
@@ -19,6 +22,7 @@ import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.RoundRectangle2D;
+import java.awt.image.BufferedImage;
 import java.util.List;
 
 /**
@@ -47,16 +51,49 @@ public final class DesenhoJogo {
     static final Color BORDA = new Color(0x2C3644);
     static final Color TEXTO = new Color(0xE8EDF4);
     static final Color TEXTO_FRACO = new Color(0x8B97A8);
-    static final Color COBRA_A = new Color(0x3DDC84);
-    static final Color COBRA_B = new Color(0x2BA85F);
-    static final Color COBRA_CABECA = new Color(0x7CF0AC);
     static final Color COMIDA = new Color(0xFF6B6B);
     static final Color DESTAQUE = new Color(0xFFD166);
 
     private final LayoutSnake layout;
+    private final Skin skin;
+    private final SkinSprites sprites;
 
+    /** Desenha com a skin padrão. É o que a maioria dos testes quer. */
     public DesenhoJogo(LayoutSnake layout) {
-        this.layout = layout;
+        this(layout, CatalogoSkins.padrao());
+    }
+
+    /**
+     * Desenha com a skin escolhida.
+     *
+     * <p>A skin entra por aqui, na construção, e não por setter: um pintor com
+     * estado que muda é o caminho mais curto para "a tela mostra uma coisa e o
+     * teste da outra". A tela troca de skin construindo outro pintor — é barato,
+     * o objeto não guarda nada.
+     */
+    public DesenhoJogo(LayoutSnake layout, Skin skin) {
+        this.layout = java.util.Objects.requireNonNull(layout, "layout");
+        this.skin = java.util.Objects.requireNonNull(skin, "skin");
+        // Carrega uma vez, na construção. Desenhar roda a 60Hz e abrir 14 PNGs por
+        // quadro é o tipo de lentidão que só apareceria com o jogo rodando.
+        this.sprites = SkinSprites.carregar(skin.getId());
+    }
+
+    /**
+     * Os PNGs desta skin, para quem quiser saber se a arte entrou.
+     *
+     * <p>Existe para o diagnóstico e para o teste. Uma skin pela metade é o caso
+     * perigoso — a cobra sai com dedo no corpo e quadrado na cauda — e saber
+     * {@code cobreTodasAsFormas()} antes de abrir o jogo é melhor do que
+     * descobrir olhando.
+     */
+    public SkinSprites getSprites() {
+        return sprites;
+    }
+
+    /** A skin com que este pintor desenha. */
+    public Skin getSkin() {
+        return skin;
     }
 
     /** O layout usado por este desenho. */
@@ -195,23 +232,50 @@ public final class DesenhoJogo {
         for (int i = 0; i < n; i++) {
             Celula cel = celulas.get(i);
             Forma forma = formas.get(i);
-            Rectangle seg = layout.segmento(cel.getX(), cel.getY(), 0.12);
+            BufferedImage sprite = sprites.para(forma);
+
+            // O recuo é do desenho, não da célula -- e só existe no vetorial.
+            //
+            // As formas do desenho por código são blocos simples, e o espaço entre
+            // eles é o que faz a cobra ser lida como segmentos e não como um
+            // retângulo único. Num PNG o recuo é ERRADO: a arte já vem com a
+            // própria margem desenhada dentro dela, então recuar de novo abre uma
+            // fresta entre duas peças que se deveriam encostar. Foi exatamente o
+            // que apareceu no Dedinho -- o dedo saía picotado, com um vão visível a
+            // cada segmento.
+            //
+            // Por isso a escolha é por origem da arte, e não uma constante única:
+            // sprite preenche a célula, vetorial mantém o respiro.
+            Rectangle seg = layout.segmento(cel.getX(), cel.getY(), sprite != null ? 0.0 : 0.12);
+
+            if (sprite != null) {
+                // A arte manda: gradiente e sombra de canto são do desenho
+                // vetorial e não se aplicam a um PNG.
+                g2.drawImage(sprite, seg.x, seg.y, seg.width, seg.height, null);
+                continue;
+            }
 
             // a cor clareia em direção à cabeça, o que dá noção de frente
             float t = n <= 1 ? 1f : 1f - (i / (float) (n - 1));
-            g2.setColor(mesclar(COBRA_B, COBRA_A, 0.25 + t * 0.75));
+            g2.setColor(mesclar(skin.getCorpoEscuro(), skin.getCorpoClaro(), 0.25 + t * 0.75));
 
             int r = (int) Math.round(seg.width * (forma.ehCanto() ? 0.34 : 0.5));
             g2.fill(new RoundRectangle2D.Double(seg.x, seg.y, seg.width, seg.height, r, r));
 
             if (forma.ehCanto()) {
-                g2.setColor(new Color(0, 0, 0, 40));
+                g2.setColor(skin.getSombra());
                 g2.fill(new RoundRectangle2D.Double(seg.x + seg.width * 0.28,
                         seg.y + seg.height * 0.28, seg.width * 0.44, seg.height * 0.44,
                         r, r));
             }
         }
-        desenharOlhos(g2, cobra, formas.isEmpty() ? null : formas.get(0));
+        // Os olhos só são desenhados por código quando a cabeça NÃO é um PNG. Com
+        // arte na cabeça, o vetor por cima desenharia um segundo par de olhos em
+        // cima do dedo — e a regra é "existe PNG?", não uma flag na skin, porque
+        // flag é estado que pode sair de sincronia com o disco.
+        if (n > 0 && sprites.para(formas.get(0)) == null) {
+            desenharOlhos(g2, cobra, formas.get(0));
+        }
     }
 
     /** Os dois olhos, na frente da cabeça, segundo a direção em que ela anda. */
@@ -250,7 +314,7 @@ public final class DesenhoJogo {
         double px = -fy;
         double py = fx;
 
-        g2.setColor(new Color(12, 16, 20));
+        g2.setColor(skin.getOlhos());
         g2.fill(new Ellipse2D.Double(cx + fx * seg.width + px * sep - d / 2,
                 cy + fy * seg.height + py * sep - d / 2, d, d));
         g2.fill(new Ellipse2D.Double(cx + fx * seg.width - px * sep - d / 2,
@@ -344,6 +408,11 @@ public final class DesenhoJogo {
                 new Rectangle(p.x, y, p.width, 22), fonte(14, Font.PLAIN), TEXTO);
         y += 40;
         centralizar(g2, "Começa no médio, com a parede matando. [Enter] para jogar",
+                new Rectangle(p.x, y, p.width, 20), fonte(12, Font.PLAIN), TEXTO_FRACO);
+        y += 26;
+        // a skin é lida do pintor, e não perguntada à tela: quem está pintando já
+        // sabe, e perguntar criaria dois lugares gratuitos discordando
+        centralizar(g2, "Skin " + skin.getNome() + "   —   [N] troca",
                 new Rectangle(p.x, y, p.width, 20), fonte(12, Font.PLAIN), TEXTO_FRACO);
     }
 

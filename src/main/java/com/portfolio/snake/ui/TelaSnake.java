@@ -1,12 +1,15 @@
 package com.portfolio.snake.ui;
 
 import com.portfolio.snake.audio.Sons;
-import com.portfolio.snake.audio.Trilha;
 import com.portfolio.snake.audio.Sons.Efeito;
+import com.portfolio.snake.audio.Trilha;
 import com.portfolio.snake.core.Campo;
 import com.portfolio.snake.core.Direcao;
 import com.portfolio.snake.core.JogoSnake;
 import com.portfolio.snake.core.RegistroDeRecordes;
+import com.portfolio.snake.skin.CatalogoSkins;
+import com.portfolio.snake.skin.RegistroDeSkin;
+import com.portfolio.snake.skin.Skin;
 
 import java.awt.Color;
 import java.awt.Dimension;
@@ -48,7 +51,14 @@ public final class TelaSnake extends JFrame {
      * O desenho. Fica fora da janela para que um teste sem display consiga
      * pintar a cena num {@code BufferedImage} e conferir os pixels.
      */
-    private final transient DesenhoJogo desenho;
+    private transient DesenhoJogo desenho;
+    /**
+     * A skin em uso. Muda quando o jogador aperta [N], e só por isso: o pintor é
+     * reconstruído junto, em vez de ganhar um setter. Um pintor com estado
+     * mutável é o tipo de coisa que faz a tela mostrar uma skin e o teste
+     * conferir outra.
+     */
+    private transient Skin skin;
     /**
      * A partida em uso. Só é trocada no briefing e no recomeçar; durante o
      * jogo a referência não muda, e é por isso que o laço pode ler o intervalo
@@ -90,7 +100,8 @@ public final class TelaSnake extends JFrame {
         super("Jogo Snake");
         this.jogo = jogo;
         this.layout = layout;
-        this.desenho = new DesenhoJogo(layout);
+        this.skin = RegistroDeSkin.carregar();
+        this.desenho = new DesenhoJogo(layout, skin);
         this.recordeBatido = false;
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -252,6 +263,9 @@ public final class TelaSnake extends JFrame {
             case KeyEvent.VK_P:
                 alternarPausa();
                 return true;
+            case KeyEvent.VK_N:
+                trocarSkin();
+                return true;
             case KeyEvent.VK_R:
                 jogo.reiniciar();
                 recordeBatido = false;
@@ -275,6 +289,26 @@ public final class TelaSnake extends JFrame {
             default:
                 return false;
         }
+    }
+
+    /**
+     * Passa para a próxima skin, sem mexer na partida.
+     *
+     * <p>Sem reiniciar de propósito: trocar de pele é uma decisão de aparência e
+     * custar a partida por causa disso seria absurdo. Nada aqui toca no
+     * {@code JogoSnake}, então pontuação, tamanho e velocidade ficam como
+     * estavam.
+     */
+    private void trocarSkin() {
+        skin = CatalogoSkins.seguinte(skin);
+        desenho = new DesenhoJogo(layout, skin);
+        RegistroDeSkin.salvar(skin);
+        repaint();
+    }
+
+    /** A skin em uso, para o teste e para quem quiser mostrar. */
+    public Skin getSkin() {
+        return skin;
     }
 
     private void alternarPausa() {
@@ -340,6 +374,7 @@ public final class TelaSnake extends JFrame {
             KeyEvent.VK_RIGHT, KeyEvent.VK_D,
             KeyEvent.VK_SPACE, KeyEvent.VK_P,
             KeyEvent.VK_R,
+            KeyEvent.VK_N,
             KeyEvent.VK_1, KeyEvent.VK_2, KeyEvent.VK_3, KeyEvent.VK_4, KeyEvent.VK_5,
             KeyEvent.VK_ENTER, KeyEvent.VK_ESCAPE,
         };

@@ -37,18 +37,20 @@ Mesma convenção do Pong, e mais limpa:
 
 | Branch | Papel | Versão | Testes |
 |---|---|---|---|
-| `testes-jogo-snake` | desenvolvimento | `1.0-SNAPSHOT` | pom com JUnit + Surefire + JaCoCo, e os 129 testes em `src/test` |
-| `main` | release | a versionar na release | **sem** `src/test` e sem JUnit, Surefire ou JaCoCo |
+| `testes-jogo-snake` | desenvolvimento | `1.0-SNAPSHOT` | pom com JUnit + Surefire + JaCoCo, e os 163 testes em `src/test` |
+| `main` | release | a versionar na release | hoje **sem** `src/test`; deve passar a levar os testes — ver "Política da `main`" |
 
-A diferença para o Pong é deliberada. Lá a `main` também guarda `src/test` e a
-dependência do JUnit, porque a `main` foi criada a partir da branch de testes na
-hora da release (`testes-jogo-pong` é ancestral de `main`, e a única diferença
-entre as duas são três arquivos de documentação). O resultado ficou oposto ao
-que o nome da branch sugere. Aqui a `main` carrega só o jogo.
+**Política da `main`, revista**: a `main` deve receber `src/test` junto com o jogo,
+como no Pong, e continua sendo mergeada **só na hora da release**. Separar "o que é
+entregue" de "o que é verificado" é erro meu, não uma convenção: uma `main` sem
+testes é um artefato que ninguém consegue reprovar. O que se separa é o *quando*,
+não o *o quê*.
 
-O histórico dos 4 primeiros commits ainda contém os arquivos de teste, porque
-eles foram escritos antes de a separação existir. A partir do commit que criou a
-`main`, nenhum arquivo de teste entra nela.
+Consequência prática: a `main` atual tem `pom.xml` com JUnit/Surefire/JaCoCo
+declarados e nenhum arquivo em `src/test`, e o Launch4j aponta para
+`src/main/resources/logo.ico`, que **não existe lá**. Por inspeção o
+`mvn package` da `main` falha; isso foi verificado por leitura do `pom.xml`, não por
+execução, e a merge da release vai consertar os dois pontos de uma vez.
 
 ## Decisões já fechadas
 
@@ -58,6 +60,10 @@ eles foram escritos antes de a separação existir. A partir do commit que criou
   Snake clássico) e `Campo.Borda.WRAP` (a cobra dá a volta).
 - **Quatro skins**: `Clássico`, `Chapéu`, `Colorida` e `Dedinho` — esta última é
   a própria cobra desenhada como um dedo apontando, com a unha como cabeça.
+  A entrega foi em duas etapas: **paleta** (as três primeiras) e depois
+  **sprites** (o `Dedinho`). `Dedinho` não entrou na paleta: é arte por forma, não
+  uma troca de cor. As 14 peças do Dedinho saem de **4** imagens giradas em
+  código, não de 14 desenhos — ver "A camada `skin`".
 - **Híbrido procedural/sprites**: o vetorial é a base e nunca some, e o PNG é
   uma sobreposição opcional. Sem arte externa o jogo continua completo e bonito,
   que é o que evita o bloqueio que a Forca tem.
@@ -74,9 +80,9 @@ eles foram escritos antes de a separação existir. A partir do commit que criou
 |---|-----------|--------|--------|----------|
 | 1 | ~~Alta~~ | ui | ~~**`TelaSnake` não existe**~~ | **Concluído.** Janela, tabuleiro, cobra com as 14 formas, HUD (pontos, recorde, nível, comprimento), faixa de borda, rodapé com cards de poder, pausa, briefing com escolha de borda e dificuldade, tela de fim com selo de novo recorde, e o laço de tempo que mede o tempo decorrido entre tiques (um travamento da máquina atrasa a cobra, não a teletransporta). A janela **abre de verdade** — ver "Validação visual" |
 | 2 | ~~Alta~~ | build | ~~**`logo.ico` e `tools/GerarLogo.java` ausentes**~~ | **Concluído.** `tools/DesenharLogoSnake.java` desenha o mestre `logo-256.png` por código, e `tools/GerarLogo.java` deriva os 6 PNGs menores e monta o `.ico`. Ver "Ícone e logo" abaixo |
-| 3 | — | core | ~~**`JogoSnake` testado só nas regras básicas**~~ resolvido no round 2: os 32 testes de `JogoSnakeTest` cobrem comer, as duas bordas, colidir com o corpo, a cabeça na célula liberada pela cauda, campo lotado, os dois poderes com renovação, pausa, reinício e a fila de direções; **mais** (a) `JogoSnakeSoakTest`, que joga 20 000 passos reais em partidas encadeadas, e (b) `intervaloMs` nas três dificuldades, com o piso de 60 ms e o teto de nível. O (c) — recorde em disco — já estava resolvido em `DesenhoJogoTest`, que aponta `user.home` para uma pasta temporária e apaga tudo depois. **O soak não achou bug** — ver "Round 2" |
-| 4 | ~~Alta~~ | ui | ~~**Testes de UI desde o começo**~~ | **Concluído: 37 testes em `ui`** (24 de layout + 13 de desenho), e ambos os grupos foram verificados por mutação. `LayoutSnake` cobre a geometria e achou um defeito real de 8px entre tabuleiro e rodapé. `DesenhoJogo` cobre os pixels e achou o selo de recorde piscando (bug 5 abaixo) |
-| 5 | Média | skin | As 4 skins | `Skin` + `CatalogoSkins` + `SkinVetorial` (a base, sempre presente) + `SkinSprites` (14 tiles: 4 cabeças, 4 rabos, 2 corpos retos, 4 cantos, com fallback vetorial se o PNG faltar). `Clássico`, `Chapéu`, `Colorida` e `Dedinho`, com persistência em `~/.jogo-snake-skin.properties` e troca sem reiniciar a partida |
+| 3 | — | core | ~~**`JogoSnake` testado só nas regras básicas**~~ resolvido no round 2: os 39 testes de `JogoSnakeTest` cobrem comer, as duas bordas, colidir com o corpo, a cabeça na célula liberada pela cauda, campo lotado, os dois poderes com renovação, pausa, reinício e a fila de direções; **mais** (a) `JogoSnakeSoakTest`, que joga 20 000 passos reais em partidas encadeadas, e (b) `intervaloMs` nas três dificuldades, com o piso de 60 ms e o teto de nível. O (c) — recorde em disco — já estava resolvido em `DesenhoJogoTest`, que aponta `user.home` para uma pasta temporária e apaga tudo depois. **O soak não achou bug** — ver "Round 2" |
+| 4 | ~~Alta~~ | ui | ~~**Testes de UI desde o começo**~~ | **Concluído: 50 testes em `ui`** (24 de layout + 19 de desenho + 7 do ícone), e ambos os grupos foram verificados por mutação. `LayoutSnake` cobre a geometria e achou um defeito real de 8px entre tabuleiro e rodapé. `DesenhoJogo` cobre os pixels e achou o selo de recorde piscando (bug 5 abaixo) |
+| 5 | Média | skin | As 4 skins | **Concluído: 4 de 4.** `Skin` + `CatalogoSkins` + `RegistroDeSkin` (cores, persistência em `~/.jogo-snake-skin.properties`, troca por `[N]` sem reiniciar) e `SkinSprites` (carrega `/skins/<id>/<FORMA>.png`, PNG ausente cai no vetorial). As 3 primeiras são paleta; o `Dedinho` são 14 PNGs de arte por forma. Grade padrão 20×20 → **16×16**. Ver "A camada `skin`" |
 | 6 | ~~Média~~ | audio | ~~**Sons e o silêncio no executável**~~ | **Concluído: 31 testes em `audio`** (15 do `Sons` + 13 da `Trilha` + 3 do motivo no `core`). Os quatro efeitos são gerados por código, e o teste carrega o **próprio `Sons` de dentro de um jar** — foi o que transforma a regressão do Pong em um teste que morde |
 | 7 | Média | fx | Partículas | Comer comida, coletar poder, bater na parede. Reaproveitar o desenho do Pong |
 | 8 | Média | — | **README** | Não existe. Tem que descrever o que o Snake **tem**, e não o que ele vai ter, com o mesmo cuidado do Pong depois do badge: nada de "validado por smoke test" sem o teste |
@@ -124,14 +130,21 @@ Falta o olho de uma pessoa, nesta lista:
 
 **Status: em andamento. O jogo não está pronto, e o `.exe` não é signal disso.**
 
-O item 2 está resolvido e o `package` passou. Isso é **build verificado**, que é uma
-coisa diferente de release: prova que o launch4j acha o ícone, que o jar monta e
-que o executável abre. Não prova que o jogo está acabado, e o que falta está
-escrito na lista abaixo para não se perder de vista.
+O item 2 está resolvido, o áudio tocou e a paleta das skins está em pé. O
+`package` passou. Isso é **build verificado**, que é uma coisa diferente de
+release: prova que o launch4j acha o ícone, que o jar monta e que o executável
+abre. Não prova que o jogo está acabado, e o que falta está escrito na lista
+abaixo para não se perder de vista.
+
+**Onde paramos agora**: a camada `skin` está **inteira** — paleta das 3 skins
+vetoriais e os 14 PNGs do `Dedinho` — com **163 testes verdes** e o Dedinho
+validado a olho pelo autor. Ainda **sem tag, sem release, sem push**. O que falta
+são as partículas, a validação visual do resto e o README — ver "O que ainda
+falta para o jogo estar pronto" e "A camada `skin`".
 
 ### O que o build verificado cubriu
 
-- `mvn clean package` verde, **129 testes** (85 + 7 de `LogoTest` + 6 do round 2 + 31 de `audio`)
+- `mvn clean package` verde, **163 testes** (59 em `core` + 28 em `audio` + 26 em `skin` + 50 em `ui`)
 - `target/jogo-snake.exe` gerado, e **abrindo de verdade**: processo `javaw.exe` no
   ar com janela de título `Jogo Snake`
 - `logo.ico` embutido no executável, `logo-{16..256}.png` no classpath (8 recursos
@@ -143,7 +156,8 @@ Nada disso foi publicado: **sem tag, sem release, sem push**. Não é entrega.
 
 | | Camada | O que falta |
 |---|---|---|
-| 1 | `skin/` | as 4 skins do briefing. O pacote existe **vazio**: 0 arquivos |
+| 1 | `skin/` | ~~os sprites das 4 skins~~ **resolvido**: `SkinSprites` pronto e testado, e o `Dedinho` com os 14 PNGs gerados por `tools/RecortarDedinho.java` |
+| 1b | `skin/` | encolher os PNGs do Dedinho: 5,4 MB em resolução cheia para serem mostrados a 28 px. O `.exe` foi de 1 MB para 5,9 MB |
 | 3 | `fx/` | as partículas. O pacote existe **vazio**: 0 arquivos |
 | 4 | ui | validação visual **humana** (a lista em "Validação visual") |
 | 5 | — | item 8: o README |
@@ -258,7 +272,7 @@ borrado na barra de tarefas.
   método: relógio dos poderes → direção e destino com a borda já corrigida →
   parede → mover (a cauda sai aqui) → vitória → colisão → pontos e nível →
   resorts. Dificuldade, pausa, briefing, reinício e recorde
-- **`JogoSnakeTest`: 32 testes, todos verdes** — comer, `MORRE` mata e `WRAP` dá
+- **`JogoSnakeTest`: 39 testes, todos verdes** — comer, `MORRE` mata e `WRAP` dá
   a volta, o corpo também dá a volta, comer na parede oposta no wrap, colidir
   com o corpo, cabeça na célula liberada, campo lotado com `timeout` de 2 s, os
   dois poderes com renovação em vez de empilhar, o fantasma segurando a parede
@@ -471,17 +485,209 @@ jogo se comportar errado**. Três dos quatro bugs acima passaram pelo código
 parecendo certo. E o quinto tinha outra forma: a lógica estava certa e o desenho
 mentia.
 
+## A camada `skin`: paleta e os sprites do Dedinho
+
+Adecided a ordem depois de olhar a conta: 14 formas × 4 skins = **56 PNGs**, cada um
+com alfa, com a variante de cor da sua skin. Isso é um dia de arte, não um turno.
+A paleta entrega o item 5 na mesma forma que o jogador sente — a cobra muda de cor
+com `[N]` — e deixa o `SkinSprites` como um incremento próprio, sem reescrever o
+que já está testado.
+
+### O que existe
+
+- `Skin`: valor imutável, igualdade por valor. Sem `equals`, uma skin lida do disco
+  nunca seria igual à do catálogo, e o `==` do `TelaSnake` nunca bateria.
+- `CatalogoSkins`: as três paletas, `porId` (case-insensitive) e `seguinte`, que
+  devolve **uma skin nova** e não mexe na instância guardada.
+- `RegistroDeSkin`: `~/.jogo-snake-skin.properties`, chave `skin=<id>`.
+- `DesenhoJogo` recebe a skin no construtor; `TelaSnake` troca e salva.
+
+O que a skin **não** toca: `JogoSnake` não sabe que skins existem. Pontuação,
+tamanho e velocidade não mudam ao trocar, e o teste de pixels usa o mesmo
+`JogoSnake` para as três — se a troca tivesse mexido na partida, o desenho mudaria
+por outro motivo e o teste não provaria nada.
+
+### Os sprites do `Dedinho`: 4 imagens, 14 peças
+
+A primeira tentativa pediu **uma folha 7×2** com as 14 peças, num gerador de
+imagem. A folha veio com 14 ilustrações *sem relação entre si*: dentro de cada grupo
+(cantos, rabos, cabeças) o melhor casamento entre duas peças foi de 44% a 66%, e
+cerca de metade de cada PNG é fundo transparente — ou seja, os desenhos opacos
+praticamente não se pareciam. A arte também invadia as fronteiras das células (a
+cobertura de alfa é contínua nos limites da grade), então 12 das 14 peças saíram do
+tamanho inteiro da célula. Girar não corrigiria aquilo, porque não eram a mesma
+forma em quatro orientações.
+
+A virada foi pedir **uma peça por imagem** e derivar o resto em código:
+
+| Imagem pedida | Peças por giro de 90° |
+|---|---|
+| corpo deitado | `RETO_H`, `RETO_V` |
+| cotovelo | `CANTO_NO`, `CANTO_NE`, `CANTO_SE`, `CANTO_SO` |
+| cabeça com unha para a direita | `CABECA_DIREITA`, `CABECA_BAIXO`, `CABECA_ESQUERDA`, `CABECA_CIMA` |
+| rabo com a ponta para cima | `RABO_CIMA`, `RABO_DIREITA`, `RABO_BAIXO`, `RABO_ESQUERDA` |
+
+Simetria perfeita deixa de ser um pedido ao gerador e vira consequência da
+construção. As 12 peças derivadas são giros exatos a 100,00% — verificado byte a
+byte, não a olho.
+
+`tools/RecortarDedinho.java` faz o resto: mede a cor real do fundo, remove o verde
+em duas passadas, recorta na caixa da arte e gira. Os ângulos **não** estão
+escritos à mão — a ferramenta traduz cada `Forma` num conjunto de lados que ela
+ocupa, gira o conjunto, e procura o giro que leva o canônico até o alvo. Uma tabela
+"`canônico` 0°, 90°, 180°, 270°" escrita à mão é exatamente o tipo de coisa que sai
+transposta sem ninguém perceber: quatro peças viradas e o defeito só aparece
+jogando. E saiu.
+
+A base medida de cada grupo está escrita na chamada da ferramenta, e **não é o que
+o prompt pediu**: o cotovelo foi pedido "entra pelo topo e sai pela direita"
+(`CANTO_NE`) e veio espelhado, com o entalhe olhando para a base-direita e as pernas
+para cima e para a esquerda, que é `CANTO_NO`.
+
+### Três armadilhas que nenhuma falha de compilação denuncia
+
+1. **O cotovelo é a única peça que não se descobre pelo nome.** A orientação das
+   cabeças e dos rabos sai da direção da unha e da ponta, ambas medíveis. Num
+   cotovelo não há unha, e a assimetria só aparece olhando **qual quadrante da
+   caixa da arte está vazio** — o lado côncavo. Foi a leitura do quadrante vazio
+   que revelou o espelhamento.
+2. **JPEG não tem canal alfa, e `setRGB(0x00000000)` nele grava *preto*.**
+   `ImageIO.read` devolve JPEG como `TYPE_3BYTE_BGR`; escrever transparência ali
+   não cria transparência. O resultado era um PNG **100% opaco** com um retângulo
+   preto em volta do dedo — e ele passava por dois testes, porque a caixa da arte
+   saía certa (o preto é lido como arte) e a contagem de verde dava zero (preto não
+   é verde). Só a inspeção do alfa revelou. A correção é converter para ARGB antes
+   de tocar nos pixels, e a ferramenta agora **recusa gravar** se nenhum pixel
+   ficar transparente: o mesmo silêncio não repete.
+3. **O verde sai por dominância, não por proximidade.** Todas as cores do Dedinho
+   têm o vermelho na frente (pele `rgb(232,176,138)`, unha `rgb(247,217,200)`,
+   contorno `rgb(58,36,24)`), então "o verde manda sobre os outros dois canais" é o
+   teste que separa o resíduo da pele. E a cor do fundo **não** pode ser a do
+   prompt: as quatro fontes vieram entre `rgb(38,235,24)` e `rgb(55,226,34)`, e
+   nenhum verde é o `#00FF00` pedido. Medir a borda resolve; zerar a constante não.
+
+### O recuo da célula é do desenho, não da grade
+
+O `folga` de 0,12 que afasta a arte dos limites da célula existe para o **vetorial**:
+formas simples ficam separadas por um respiro, e é isso que faz a cobra ser lida
+como segmentos e não como um retângulo único. Num PNG o recuo é **errado** — a arte
+já vem com a própria margem desenhada dentro dela, então recuar de novo abre uma
+fresta entre peças que deveriam encostar. No Dedinho o dedo saía picotado. A escolha
+passou a ser por origem da arte: sprite preenche a célula, vetorial mantém o
+respiro. Medido: 84 pixels contínuos na linha do corpo, zero frestas.
+
+### Arquivo seguro, e por que o teste segura o disco
+
+Um arquivo de preferência corrompido não pode impedir o jogo de abrir. O
+`carregar` tem três camadas: arquivo ausente → padrão; chave ausente ou vazia →
+padrão; id fora do catálogo → padrão; e o `catch (IOException | RuntimeException)`
+por cima, para arquivo truncado ou lixo. O teste redireciona `user.home` para uma
+pasta temporária e restaura no `@After`, então não toca no disco de verdade.
+
+### Mutação (7 tentativas, 6 derrubadas)
+
+| Mutação | Cai |
+|---|---|
+| `DesenhoJogo` volta à cor fixa em vez de `skin.getCorpo*` | `DesenhoJogoTest` |
+| `DesenhoJogo` ignora a sombra da skin | `DesenhoJogoTest` |
+| `porId` devolve o padrão em vez de `null` | `CatalogoSkinsTest` |
+| `seguinte` sem `% TODAS.size()` (não dá a volta) | `CatalogoSkinsTest` |
+| `porId` deixa de ignorar caixa | `CatalogoSkinsTest` |
+| gravar posição em vez de id | `RegistroDeSkinTest` |
+| **ler id desconhecido devolve a skin sem conferir** | **ninguém** |
+
+A sétima **não é um furo, e é instrutiva**: a mutação introduz um
+`NullPointerException`, e o `catch (RuntimeException)` do `carregar` engole a
+exceção e devolve o padrão. O desfecho observável — "o jogo abre" — é o mesmo,
+porque a garantia está duplicada: verificação de nulo *e* `catch`. Um teste no
+desfecho não consegue dizer qual dos dois salvou. Preferi registrar isso a forçar
+um teste que só passaria por acidente. Se algum dia o `catch` for estreitado, o
+teste do desfecho continua valendo e passa a ser o único aviso.
+
+### Dois erros meus que os testes pegaram antes de eu ver
+
+1. **O teste de sombra passava vazio.** Eu escrevi "cada skin pinta diferente da
+   clássica" e achei que cobria a sombra. Não cobria: as skins já diferem no corpo,
+   então a imagem mudava de qualquer jeito e a sombra poderia estar fixa sem
+   ninguém notar. Só apareceu na mutação, que não caiu. O teste que pega a sombra
+   usa duas skins **idênticas em tudo menos a sombra**.
+2. **E esse segundo teste também passava vazio**, por um motivo diferente: com 3
+   segmentos o canto é um instante — assim que a cabeça dá um passo além da
+   virada, o canto rolou para fora e a cobra volta a ser reta. Pior: a cobra
+   começa indo para CIMA, então `virar(BAIXO)` era inverter e **foi recusado**,
+   e o cenário virava "cobra reta" sem reclamar. Agora o teste faz a cobra crescer
+   antes de virar, e afirma que o canto existe **antes** de olhar os pixels. É a
+   armadilha do "cenário que não alcança a linha testada", e ela apareceu duas
+   vezes no mesmo teste.
+
+Também: `apagarRecursivamente`, no `@After`, assumia que o caminho era diretório e
+estourou `NotDirectoryException` ao receber o arquivo. Os 9 erros vermelhos que
+vieram daí eram do helper, não do código de produção — mas o helper errado
+esconderia um defeito real, então virou `Files.isDirectory` + `exists`.
+
+### Validação humana que ainda falta
+
+Os 163 testes provam que a skin muda os pixels. Não provam que está bonito.
+
+**Já validado a olho pelo autor**: as três paletas, o `Dedinho` com a cabeça e o
+rabo na direção certa e as peças sem fresta. Foi essa validação que achou o defeito
+de core abaixo.
+
+**Ainda falta**: fechar e reabrir o `.exe` para conferir que a escolha persiste, e
+verificar se a linha do briefing não colide com nada.
+
+## Bug 6: a cabeça e o rabo apontavam para trás
+
+**Onde**: `Cobra.formas()`, nos dois extremos do corpo.
+
+**O que acontecia**: uma cobra andando para a **direita** recebia `CABECA_ESQUERDA` e
+`RABO_DIREITA`. O nome da cabeça é a direção para onde ela vai, e a do rabo é a
+direção de onde ele vem; mas `formas()` passava, nos dois extremos, a direção
+**para dentro** do segmento — cabeça→pescoço, e pescoço→rabo. `Forma.deCabeca` e
+`deRabo` esperavam o contrário.
+
+**Quem foi atingido**: todo mundo. Os olhos das skins vetoriais estavam virados desde o
+começo, e só não apareceram porque um vetorial todo bege com olhos levemente
+trocados passa despercebido. As sprites do Dedinho transformaram um defeito
+invisível em óbvio — que é o melhor argumento a favor de sprites: eles não
+introduzem o bug, eles o denunciam.
+
+**O detalhe que confirma que era convenção e não engano**: os javadocs do `Forma`
+diziam *"Primeiro segmento, com a direção de saída"* desde o começo, e estavam
+**certos**. Quem violava a convenção era o `formas()`. A correção alinhou o código
+com a própria documentação, e não o contrário.
+
+**Por que passou por 161 testes** (e o que foi feito depois): nenhum teste afirma qual `Forma` a cabeça recebe.
+O único que olha `formas()` usa `ehCanto()`, e canto não muda com a inversão — no
+meio do corpo entrada e saída viram junto, então o nome do canto é o mesmo. A classe
+que mais.testing tinha era a que estava errada, e nenhum teste cobria o eixo
+errado.
+
+**O que foi feito depois**: `CobraTest` ganhou `aCabecaApontaParaOndeACobraAnda` e
+`oRaboApontaParaForaDoCorpo`. O primeiro percorre uma espiral de quatro lados
+affirmando que a cabeça bate com a direção de movimento; o segundo monta a
+expectativa numa tabela escrita à mão, de propósito — derivá-la de `Forma` seria
+circular e o teste passaria com o defeito presente. Reintroduzi o bug: os dois
+caem com `expected:<CABECA_DIREITA> but was:<CABECA_ESQUERDA>` e
+`expected:<RABO_ESQUERDA> but was:<RABO_DIREITA>`, e passam com o fix.
+
+**A armadilha da família**: é a mesma do "cenário que não alcança a linha testada".
+Um teste que afirma "a cabeça não aponta para trás" precisa montar uma cobra que
+ande para a direita; montar uma parada ou andando para a esquerda deixa o defeito
+invisível.
+
 ## Números
 
 | | Pong | Snake |
 |---|---|---|
-| Testes | 180 | **129** |
-| Testes em `ui` | 27 (só o `BotaosTest`) | **44** (24 de layout + 13 de pixels + 7 do ícone) |
+| Testes | 180 | **163** |
+| Testes em `ui` | 27 (só o `BotaosTest`) | **50** (24 de layout + 19 de pixels + 7 do ícone) |
 | Classes de `core` sem teste | — | `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder`, `RegistroDeRecordes` |
 | Bugs reais achados por teste | 2 (o hover e o prêmio congelado, ambos na 1.0.1) | **5** (4 por teste de regra, 1 por teste de pixel) |
+| Bugs achados por validação visual | 0 | **1** (a cabeça e o rabo para trás, bug 6) |
 | Linha de comando | — | `/c/Users/dudu2/.m2/wrapper/dists/apache-maven-3.9.11/d6d3cbd4012d4c1d840e93277aca316c/bin/mvn` (o `mvn` não está no `PATH`) |
 
-A coluna do Pong é a da `v1.0.1`. A do Snake é depois do item 6, e **129 testes não
-são 129 de cobertura**: `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder` e
+A coluna do Pong é a da `v1.0.1`. A do Snake é depois do item 6, e **163 testes não
+são 163 de cobertura**: `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder` e
 `RegistroDeRecordes` continuam sem teste próprio, e são classes cujas regras o
 `JogoSnake` só usa por inteiro.

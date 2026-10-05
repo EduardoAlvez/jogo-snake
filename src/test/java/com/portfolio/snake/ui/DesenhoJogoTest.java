@@ -10,7 +10,10 @@ import com.portfolio.snake.core.Celula;
 import com.portfolio.snake.core.Comida;
 import com.portfolio.snake.core.Cobra;
 import com.portfolio.snake.core.Direcao;
+import com.portfolio.snake.core.Forma;
 import com.portfolio.snake.core.JogoSnake;
+import com.portfolio.snake.skin.CatalogoSkins;
+import com.portfolio.snake.skin.Skin;
 
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -91,8 +94,9 @@ public class DesenhoJogoTest {
                 jogo.getCobra().cabeca().getX(), jogo.getCobra().cabeca().getY(), 0.12);
 
         assertTrue("nenhum pixel verde de cobra na célula da cabeça",
-                existePixelProximo(img, cabeca, DesenhoJogo.COBRA_A, TOLERANCIA)
-                        || existePixelProximo(img, cabeca, DesenhoJogo.COBRA_B, TOLERANCIA));
+                existePixelProximo(img, cabeca, CatalogoSkins.padrao().getCorpoClaro(), TOLERANCIA)
+                        || existePixelProximo(img, cabeca,
+                                CatalogoSkins.padrao().getCorpoEscuro(), TOLERANCIA));
     }
 
     @Test
@@ -390,5 +394,194 @@ public class DesenhoJogoTest {
             }
         }
         return achados;
+    }
+
+    // ------------------------------------------------------------------
+    // A skin escolhida tem que aparecer nos pixels
+    // ------------------------------------------------------------------
+
+    /**
+     * Trocar a skin muda o que está pintado.
+     *
+     * <p>Este é o teste que impede a skin de ser enfeite. Sem ele, {@code Skin}
+     * seria uma classe bonita e inerte: o catálogo existiria, a tecla existiria,
+     * a preferência gravaria em disco, e a cobra continuaria verde com o nome
+     * "Colorida" escrito no briefing. A mutação que ele derruba é
+     * {@code DesenhoJogo} voltar a usar as constantes fixas.
+     */
+    @Test
+    public void aSkinEscolhidaMudaOsPixelsDaCobra() {
+        JogoSnake jogo = jogoRodando();
+        Celula cabeca = jogo.getCobra().cabeca();
+        Rectangle r = layout.segmento(cabeca.getX(), cabeca.getY(), 0.12);
+
+        BufferedImage classico = new BufferedImage(layout.getLarguraJanela(),
+                layout.getAlturaJanela(), BufferedImage.TYPE_INT_RGB);
+        desenharCom(classico, jogo, CatalogoSkins.CLASSSICO);
+
+        for (Skin outra : CatalogoSkins.todas()) {
+            if (outra.getId().equals(CatalogoSkins.CLASSSICO.getId())) {
+                continue;
+            }
+            BufferedImage img = new BufferedImage(layout.getLarguraJanela(),
+                    layout.getAlturaJanela(), BufferedImage.TYPE_INT_RGB);
+            desenharCom(img, jogo, outra);
+            int diferentes = pixelsDiferentes(pixels(classico), pixels(img));
+            assertTrue("a skin " + outra.getId() + " pintou igual a classica: "
+                    + "0 pixels mudaram, entao o desenho ignora a skin",
+                    diferentes > 0);
+        }
+    }
+
+    @Test
+    public void aCabecaFicaComACorDaSkinEscolhida() {
+        JogoSnake jogo = jogoRodando();
+        Celula cabeca = jogo.getCobra().cabeca();
+        Rectangle r = layout.segmento(cabeca.getX(), cabeca.getY(), 0.12);
+
+        for (Skin s : CatalogoSkins.todas()) {
+            BufferedImage img = new BufferedImage(layout.getLarguraJanela(),
+                    layout.getAlturaJanela(), BufferedImage.TYPE_INT_RGB);
+            desenharCom(img, jogo, s);
+            boolean achou = existePixelProximo(img, r, s.getCorpoClaro(), TOLERANCIA)
+                    || existePixelProximo(img, r, s.getCorpoEscuro(), TOLERANCIA);
+            assertTrue("a cabeca da skin " + s.getId() + " nao tem cor de cobra", achou);
+        }
+    }
+
+    /**
+     * Desenhar duas vezes com o mesmo estado dá o mesmo desenho.
+     *
+     * <p>É a regra que o defeito do selo de recorde quebrou, e a de um pintor com
+     * skin nova precisa continuar obedecendo: se a skin entrasse como estado
+     * mutável, a segunda repintação poderia sair diferente da primeira.
+     */
+    @Test
+    public void duasRepinturasComAMesmaSkinSaoIguais() {
+        JogoSnake jogo = jogoRodando();
+        BufferedImage a = new BufferedImage(layout.getLarguraJanela(),
+                layout.getAlturaJanela(), BufferedImage.TYPE_INT_RGB);
+        BufferedImage b = new BufferedImage(layout.getLarguraJanela(),
+                layout.getAlturaJanela(), BufferedImage.TYPE_INT_RGB);
+        DesenhoJogo comChapeu = new DesenhoJogo(layout, CatalogoSkins.CHAPEU);
+        Graphics2D g1 = a.createGraphics();
+        try {
+            comChapeu.pintar(g1, jogo, false);
+        } finally {
+            g1.dispose();
+        }
+        Graphics2D g2b = b.createGraphics();
+        try {
+            comChapeu.pintar(g2b, jogo, false);
+        } finally {
+            g2b.dispose();
+        }
+        assertArrayEquals("a segunda repintura mudou o desenho", pixels(a), pixels(b));
+    }
+
+    @Test
+    public void oConstrutorSemSkinUsaAPadrao() {
+        assertEquals(CatalogoSkins.padrao(), new DesenhoJogo(layout).getSkin());
+    }
+
+    @Test
+    public void skinNulaEhRejeitadaNaConstrucao() {
+        try {
+            new DesenhoJogo(layout, null);
+            org.junit.Assert.fail("aceitou skin nula");
+        } catch (NullPointerException esperado) {
+            assertEquals(CatalogoSkins.padrao(), desenho.getSkin());
+        }
+    }
+
+    private void desenharCom(BufferedImage img, JogoSnake jogo, Skin skin) {
+        Graphics2D g2 = img.createGraphics();
+        try {
+            new DesenhoJogo(layout, skin).pintar(g2, jogo, false);
+        } finally {
+            g2.dispose();
+        }
+    }
+
+    /**
+     * A sombra do canto vem da skin.
+     *
+     * <p>O teste anterior — "cada skin pinta diferente da clássica" — <b>não</b>
+     * pega a sombra trocada: as skins já diferem no corpo, então a imagem muda
+     * de qualquer jeito e a sombra poderia estar fixa sem ninguém notar. Aqui as
+     * duas skins são idênticas em tudo menos a sombra, e a única coisa que pode
+     * mudar o desenho é ela.
+     *
+     * <p>A cobra <b>vira</b> antes de pintar. Com a cobra reta não existe canto,
+     * a sombra não teria onde aparecer, e o teste passaria sem exercitar nada.
+     */
+    @Test
+    public void aSombraDaSkinMudaOsCantos() {
+        JogoSnake j = new JogoSnake(campo(), JogoSnake.Dificuldade.MEDIO, SEMENTE);
+        j.iniciar();
+        // Virada de verdade: a cobra começa indo para CIMA, então inverter o
+        // sentido seria recusado em silêncio e o cenário viraria "cobra reta".
+        Direcao agora = j.getCobra().getDirecao();
+        boolean naHorizontal = agora == Direcao.DIREITA || agora == Direcao.ESQUERDA;
+        Direcao alvo = naHorizontal ? Direcao.CIMA : Direcao.DIREITA;
+        j.virar(alvo);
+
+        // O canto aparece e some: com poucos segmentos ele dura um passo so,
+        // porque rola para o rabo assim que a cabeca avanca. Por isso o cenario
+        // e DIRIGIDO ate a pre-condicao, com limite, em vez de bater um numero
+        // de passos fixo. E o teste nao cresce a cobra: numa grade pequena o
+        // perseguidor morre antes de comer tres vezes, e o teste falhava por
+        // isso -- nao por causa da sombra.
+        boolean achouCanto = false;
+        for (int i = 0; i < 20 && !achouCanto; i++) {
+            // a virada e enfileirada: so vale no passo seguinte, nao na hora
+            j.passo(0.2);
+            assertEquals("a virada nao foi aceita, e o cenario nao tem canto",
+                    alvo, j.getCobra().getDirecao());
+            for (Forma f : j.getCobra().formas()) {
+                achouCanto |= f.ehCanto();
+            }
+            if (j.getEstado() != JogoSnake.Estado.JOGANDO) {
+                break;
+            }
+        }
+        assertEquals("a cobra morreu antes de ter canto, e o cenario nao alcança a linha",
+                JogoSnake.Estado.JOGANDO, j.getEstado());
+        assertTrue("a cobra ficou reta, e a sombra dos cantos nao teria onde aparecer",
+                achouCanto);
+
+        Skin base = CatalogoSkins.CLASSSICO;
+        Skin sombraFraca = new Skin("fraca", "Fraca", base.getCorpoClaro(),
+                base.getCorpoEscuro(), base.getCabeca(), new Color(0, 0, 0, 10),
+                base.getOlhos());
+        Skin sombraForte = new Skin("forte", "Forte", base.getCorpoClaro(),
+                base.getCorpoEscuro(), base.getCabeca(), new Color(0, 0, 0, 220),
+                base.getOlhos());
+
+        BufferedImage fraca = new BufferedImage(layout.getLarguraJanela(),
+                layout.getAlturaJanela(), BufferedImage.TYPE_INT_RGB);
+        BufferedImage forte = new BufferedImage(layout.getLarguraJanela(),
+                layout.getAlturaJanela(), BufferedImage.TYPE_INT_RGB);
+        desenharCom(fraca, j, sombraFraca);
+        desenharCom(forte, j, sombraForte);
+
+        int diferentes = pixelsDiferentes(pixels(fraca), pixels(forte));
+        assertTrue("so a sombra difere entre as duas skins, e nada mudou: "
+                + "o desenho esta usando uma sombra fixa", diferentes > 0);
+    }
+
+    /** Quantos pixels mudaram entre dois desenhos. */
+    private static int pixelsDiferentes(int[] a, int[] b) {
+        int n = 0;
+        for (int i = 0; i < a.length; i++) {
+            if (a[i] != b[i]) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    private static int[] pixels(BufferedImage img) {
+        return img.getRGB(0, 0, img.getWidth(), img.getHeight(), null, 0, img.getWidth());
     }
 }
