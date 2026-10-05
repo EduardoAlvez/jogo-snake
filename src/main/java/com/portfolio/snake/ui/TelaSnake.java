@@ -1,15 +1,23 @@
 package com.portfolio.snake.ui;
 
+import com.portfolio.snake.audio.Sons;
+import com.portfolio.snake.audio.Sons.Efeito;
+import com.portfolio.snake.audio.Trilha;
 import com.portfolio.snake.core.Campo;
 import com.portfolio.snake.core.Direcao;
 import com.portfolio.snake.core.JogoSnake;
 import com.portfolio.snake.core.RegistroDeRecordes;
+import com.portfolio.snake.skin.CatalogoSkins;
+import com.portfolio.snake.skin.RegistroDeSkin;
+import com.portfolio.snake.skin.Skin;
 
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.event.KeyEvent;
+import java.util.ArrayList;
+import java.util.List;
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
@@ -35,12 +43,22 @@ public final class TelaSnake extends JFrame {
 
     private static final long serialVersionUID = 1L;
 
+    /** As resoluções do ícone, da menor para a maior. */
+    private static final int[] TAMANHOS_ICONE = {16, 24, 32, 48, 64, 128, 256};
+
     private final transient LayoutSnake layout;
     /**
      * O desenho. Fica fora da janela para que um teste sem display consiga
      * pintar a cena num {@code BufferedImage} e conferir os pixels.
      */
-    private final transient DesenhoJogo desenho;
+    private transient DesenhoJogo desenho;
+    /**
+     * A skin em uso. Muda quando o jogador aperta [N], e só por isso: o pintor é
+     * reconstruído junto, em vez de ganhar um setter. Um pintor com estado
+     * mutável é o tipo de coisa que faz a tela mostrar uma skin e o teste
+     * conferir outra.
+     */
+    private transient Skin skin;
     /**
      * A partida em uso. Só é trocada no briefing e no recomeçar; durante o
      * jogo a referência não muda, e é por isso que o laço pode ler o intervalo
@@ -82,7 +100,8 @@ public final class TelaSnake extends JFrame {
         super("Jogo Snake");
         this.jogo = jogo;
         this.layout = layout;
-        this.desenho = new DesenhoJogo(layout);
+        this.skin = RegistroDeSkin.carregar();
+        this.desenho = new DesenhoJogo(layout, skin);
         this.recordeBatido = false;
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -92,11 +111,18 @@ public final class TelaSnake extends JFrame {
         setFocusable(true);
         setContentPane(new Painel());
 
-        // o ícone ainda não existe no repositório; sem ele a janela abre do mesmo
-        // jeito, usando o ícone do sistema
+        // O ícone em 7 resoluções, uma por contexto do Windows. Com setIconImage
+        // (uma só), o SO escala a imagem e o ícone fica borrado na barra de
+        // tarefas; com setIconImages ele escolhe a resolução certa para cada uso.
+        // Os arquivos são gerados por tools/DesenharLogoSnake.java e
+        // tools/GerarLogo.java, e verificados por LogoTest.
         try {
-            setIconImage(java.awt.Toolkit.getDefaultToolkit().getImage(
-                    TelaSnake.class.getResource("/logo-32.png")));
+            List<java.awt.Image> icones = new ArrayList<>();
+            for (int lado : TAMANHOS_ICONE) {
+                icones.add(java.awt.Toolkit.getDefaultToolkit().getImage(
+                        TelaSnake.class.getResource("/logo-" + lado + ".png")));
+            }
+            setIconImages(icones);
         } catch (RuntimeException e) {
             // recurso ausente ou ambiente sem toolkit: a janela abre igual
         }
@@ -133,10 +159,19 @@ public final class TelaSnake extends JFrame {
 
     /** Começa o laço do jogo, com o período que o núcleo pediu. */
     public void iniciarRelogio() {
+        // carrega os sons uma vez, aqui na EDT. São 102 KB e quatro cabeçalhos:
+        // trabalho de milissegundos. Uma versão anterior fazia isto numa thread
+        // daemon para "não travar a janela", mas o que trava a EDT é o
+        // getClip()+open() de cada toque, que continua no mesmo lugar.
+        Sons.carregarTodos();
         if (timer != null) {
             timer.stop();
         }
         timer = new Timer(jogo.intervaloMs(), e -> {
+            // o retrato e tirado ANTES do passo, para saber o que mudou depois.
+            // E lido aqui, no laco do relogio, e nunca dentro de paintComponent:
+            // um som disparado no desenho tocaria uma vez por repintura.
+            Trilha.Retrato antes = Trilha.tira(jogo);
             long agora = System.nanoTime();
             double segundos = (agora - ultimoPasso) / 1_000_000_000.0;
             ultimoPasso = agora;
@@ -148,6 +183,7 @@ public final class TelaSnake extends JFrame {
                 segundos = 0;
             }
             jogo.passo(segundos);
+            anunciarSons(antes);
             conferirFimDaPartida();
             repaint();
             // a dificuldade muda o intervalo, então o Timer precisa acompanhá-la
@@ -157,6 +193,20 @@ public final class TelaSnake extends JFrame {
         });
         ultimoPasso = System.nanoTime();
         timer.start();
+    }
+
+    /**
+     * Toca os sons que o passo produziu.
+     *
+     * <p>A regra do que é evento mora em {@link Trilha}, fora da janela, onde
+     * tem teste. Aqui fica só a entrega, que é o que a janela tem de fazer.
+     *
+     * @param antes o retrato de antes do passo
+     */
+    private void anunciarSons(Trilha.Retrato antes) {
+        for (Efeito efeito : Trilha.dePara(antes, Trilha.tira(jogo))) {
+            Sons.tocar(efeito);
+        }
     }
 
     /**
@@ -213,6 +263,9 @@ public final class TelaSnake extends JFrame {
             case KeyEvent.VK_P:
                 alternarPausa();
                 return true;
+            case KeyEvent.VK_N:
+                trocarSkin();
+                return true;
             case KeyEvent.VK_R:
                 jogo.reiniciar();
                 recordeBatido = false;
@@ -236,6 +289,26 @@ public final class TelaSnake extends JFrame {
             default:
                 return false;
         }
+    }
+
+    /**
+     * Passa para a próxima skin, sem mexer na partida.
+     *
+     * <p>Sem reiniciar de propósito: trocar de pele é uma decisão de aparência e
+     * custar a partida por causa disso seria absurdo. Nada aqui toca no
+     * {@code JogoSnake}, então pontuação, tamanho e velocidade ficam como
+     * estavam.
+     */
+    private void trocarSkin() {
+        skin = CatalogoSkins.seguinte(skin);
+        desenho = new DesenhoJogo(layout, skin);
+        RegistroDeSkin.salvar(skin);
+        repaint();
+    }
+
+    /** A skin em uso, para o teste e para quem quiser mostrar. */
+    public Skin getSkin() {
+        return skin;
     }
 
     private void alternarPausa() {
@@ -301,6 +374,7 @@ public final class TelaSnake extends JFrame {
             KeyEvent.VK_RIGHT, KeyEvent.VK_D,
             KeyEvent.VK_SPACE, KeyEvent.VK_P,
             KeyEvent.VK_R,
+            KeyEvent.VK_N,
             KeyEvent.VK_1, KeyEvent.VK_2, KeyEvent.VK_3, KeyEvent.VK_4, KeyEvent.VK_5,
             KeyEvent.VK_ENTER, KeyEvent.VK_ESCAPE,
         };

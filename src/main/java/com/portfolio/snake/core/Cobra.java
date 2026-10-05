@@ -309,11 +309,49 @@ public final class Cobra {
         List<Forma> lista = new ArrayList<>(corpo.size());
         int n = corpo.size();
         for (int i = 0; i < n; i++) {
-            Direcao entrada = i > 0 ? direcaoDe(corpo.get(i - 1), corpo.get(i)) : null;
-            Direcao saida = i < n - 1 ? direcaoDe(corpo.get(i), corpo.get(i + 1)) : null;
-            lista.add(Forma.de(entrada, saida));
+            lista.add(Forma.de(entradaDe(i, n), saidaDe(i, n)));
         }
         return lista;
+    }
+
+    /**
+     * De onde este segmento veio, no sentido de "por onde o corpo chegou" nele.
+     *
+     * <p>Nos extremos do corpo a direção é <b>invertida</b> em relação ao meio, e
+     * não por acidente. {@link Forma} nomeia a cabeça pela direção para onde ela
+     * <i>vai</i> e o rabo pela direção de onde ele <i>vem</i>, e no meio do corpo
+     * "veio" e "vai" apontam os dois para a frente. Nos extremos um dos dois não
+     * existe, e o que sobra precisa apontar para fora do segmento: o pescoço da
+     * cabeça fica <b>atrás</b> dela, e o pescoço do rabo fica <b>à frente</b>.
+     *
+     * <p>Sem essa inversão, {@code Forma.de} recebe a direção para dentro e o
+     * nome sai trocado: uma cobra andando para a direita vira
+     * {@code CABECA_ESQUERDA}, e o desenho — tanto o PNG quanto os olhos do
+     * vetorial — aponta a cabeça para trás.
+     */
+    private Direcao entradaDe(int i, int n) {
+        if (i == 0) {
+            return null;
+        }
+        if (i == n - 1) {
+            return direcaoDe(corpo.get(i), corpo.get(i - 1));
+        }
+        return direcaoDe(corpo.get(i - 1), corpo.get(i));
+    }
+
+    /**
+     * Para onde este segmento vai, no sentido de "por onde o corpo deixa" ele.
+     *
+     * @see #entradaDe(int, int)
+     */
+    private Direcao saidaDe(int i, int n) {
+        if (i == n - 1) {
+            return null;
+        }
+        if (i == 0) {
+            return direcaoDe(corpo.get(i + 1), corpo.get(i));
+        }
+        return direcaoDe(corpo.get(i), corpo.get(i + 1));
     }
 
     /** Direção de um segmento vizinho para o outro (vizinho -> atual). */

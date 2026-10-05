@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
 
     <name>Jogo Snake - Portfolio Java</name>
-    <description>Snake do portfolio: cobra em grade 20x20, borda que mata ou dá a volta, dois poderes, quatro skins e recorde gravado em disco. Java 17 e Swing, sem dependências de execução</description>
+    <description>Snake do portfolio: cobra em grade 16x16, borda que mata ou dá a volta, dois poderes, quatro skins (tres vetoriais e o Dedinho em sprites) e recorde gravado em disco. Java 17 e Swing, sem dependencias de execucao; 163 testes com JUnit + Surefire + JaCoCo</description>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
@@ -22,6 +22,15 @@
         <exe.product.version>1.0.0.0</exe.product.version>
         <exe.version.text>1.0</exe.version.text>
     </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.2</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
     <build>
         <plugins>
@@ -46,6 +55,30 @@
                         </manifest>
                     </archive>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.1.2</version>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>com.akathist.maven.plugins.launch4j</groupId>

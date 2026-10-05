@@ -74,6 +74,24 @@ public final class JogoSnake {
         }
     }
 
+    /**
+     * Por que a partida acabou, quando acabou em derrota.
+     *
+     * <p>Existe para a interface poder distinguir a morte na parede da morte
+     * no próprio corpo: os dois estados são {@link Estado#FIM}, e sem esta
+     * distinção a interface não tem como escolher entre dois sons diferentes —
+     * ela teria que tocar o mesmo som para duas mortes diferentes, ou adivinhar.
+     *
+     * <p>É leitura pura: nada do núcleo decide com isto, só informa.
+     */
+    public enum Motivo {
+        /** A cabeça entrou na parede, e não havia fantasma segurando. */
+        PAREDE,
+
+        /** A cabeça entrou no próprio corpo. */
+        CORPO
+    }
+
     /** Pontos por comer a comida normal. */
     public static final int PONTOS_COMIDA = 10;
 
@@ -90,6 +108,7 @@ public final class JogoSnake {
     private final List<PoderNoChao> noChao = new ArrayList<>();
 
     private Estado estado = Estado.PAUSADO;
+    private Motivo motivo;
     private int pontos;
     private int nivel = 1;
     private int comidas;
@@ -190,6 +209,7 @@ public final class JogoSnake {
         // 3. parede
         if (!dentro && !cobraAtravessaParede()) {
             estado = Estado.FIM;
+            motivo = Motivo.PAREDE;
             return;
         }
         if (!dentro) {
@@ -220,6 +240,7 @@ public final class JogoSnake {
         // 5. colisão, sobre o corpo já atualizado
         if (cobra.colidiuComSi()) {
             estado = Estado.FIM;
+            motivo = Motivo.CORPO;
             return;
         }
 
@@ -381,6 +402,9 @@ public final class JogoSnake {
         this.maiorComprimento = 0;
         this.passos = 0;
         this.estado = Estado.PAUSADO;
+        // o motivo da derrota anterior também vaza se não for limpo: a partida
+        // nova morreria na parede e a interface tocaria o som da colisão no corpo
+        this.motivo = null;
         colocarComidaLivre();
     }
 
@@ -404,6 +428,16 @@ public final class JogoSnake {
         return dificuldade;
     }
 
+    /**
+     * Por que a partida acabou em derrota, ou {@code null} se ainda não acabou.
+     *
+     * @return o motivo da derrota
+     */
+    public Motivo getMotivo() {
+        return motivo;
+    }
+
+    /** Estado da partida. */
     public Estado getEstado() {
         return estado;
     }
