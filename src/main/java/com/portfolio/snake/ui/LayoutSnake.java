@@ -1,6 +1,8 @@
 package com.portfolio.snake.ui;
 
 import java.awt.Rectangle;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Onde cada coisa é desenhada, calculado sem Swing e sem abrir janela.
@@ -276,5 +278,165 @@ public final class LayoutSnake {
         return r.x >= 0 && r.y >= 0
                 && r.x + r.width <= larguraJanela
                 && r.y + r.height <= alturaJanela;
+    }
+
+    // ------------------------------------------------------------------
+    // Menu
+    // ------------------------------------------------------------------
+
+    /** O que um botão do menu representa, e não a sua posição. */
+    public enum Alvo {
+        /** A parede mata, ou a cobra dá a volta. */
+        BORDA_MATA, BORDA_WRAP,
+        /** As três dificuldades. */
+        FACIL, MEDIO, DIFICIL,
+        /** Entra na partida. */
+        COMECAR,
+        /** Passa para a próxima skin. */
+        TROCAR_SKIN,
+        /** Recomeça do zero. */
+        RECOMEÇAR
+    }
+
+    /** O painel do menu, com os retângulos dos botões dentro dele. */
+    public static final class Menu {
+        /** O painel de fundo, o mesmo que {@link #painelFundo} pinta. */
+        public final Rectangle painel;
+        /** Os botões, na ordem de leitura: cima primeiro. */
+        public final List<Alvo> alvos;
+        /** O retângulo de cada alvo, na mesma ordem de {@link #alvos}. */
+        public final List<Rectangle> retangulos;
+        /** O título do menu. */
+        public final Rectangle titulo;
+        /** A linha de controle, abaixo do título. */
+        public final Rectangle subtitulo;
+        /** O rótulo do grupo de borda, acima dos dois botões. */
+        public final Rectangle rotuloBorda;
+        /** O rótulo do grupo de dificuldade, acima dos três botões. */
+        public final Rectangle rotuloDificuldade;
+        /** A dica de atalhos, no pé do painel. */
+        public final Rectangle dica;
+
+        Menu(Rectangle painel, List<Alvo> alvos, List<Rectangle> retangulos,
+                Rectangle titulo, Rectangle subtitulo, Rectangle rotuloBorda,
+                Rectangle rotuloDificuldade, Rectangle dica) {
+            this.painel = painel;
+            this.alvos = alvos;
+            this.retangulos = retangulos;
+            this.titulo = titulo;
+            this.subtitulo = subtitulo;
+            this.rotuloBorda = rotuloBorda;
+            this.rotuloDificuldade = rotuloDificuldade;
+            this.dica = dica;
+        }
+
+        /**
+         * O retângulo de um alvo.
+         *
+         * @param alvo o alvo procurado
+         * @return o retângulo, ou {@code null} se o alvo não está neste menu
+         */
+        public Rectangle retangulo(Alvo alvo) {
+            for (int i = 0; i < alvos.size(); i++) {
+                if (alvos.get(i) == alvo) {
+                    return retangulos.get(i);
+                }
+            }
+            return null;
+        }
+
+        /** @return o número de botões */
+        public int tamanho() {
+            return alvos.size();
+        }
+    }
+
+    /**
+     * A geometria do menu: o painel e os botões, nada de texto.
+     *
+     * <p>Fica aqui, e não dentro do desenho, pela mesma razão dos badges do Pong:
+     * se a posição nascesse no {@code paintComponent}, nenhum teste sem display
+     * conseguiria conferi-la, e um botão saindo do painel apareceria como relato
+     * de bug depois de rodar o jogo — não como teste vermelho. Aqui o teste
+     * pergunta a geometria e ela responde, com ou sem janela.</p>
+     *
+     * <p>A grade do menu é fixa: uma linha para borda, uma para dificuldade, uma
+     * linha de skin e uma de ações. A largura dos botões sai da largura do
+     * painel, e o clamp final garante que nenhum escape, porque a janela pode ser
+     * menor do que o menu pede.</p>
+     *
+     * @return o menu pronto, com todos os botões dentro do painel
+     */
+    public Menu menu() {
+        Rectangle p = painel(520, 400);
+        List<Alvo> alvos = new ArrayList<>();
+        List<Rectangle> rs = new ArrayList<>();
+
+        int margem = 16;
+        int gap = 8;
+        int h = 34;
+        int hRot = 14;
+        int x = p.x + margem;
+        int w = p.width - margem * 2;
+
+        Rectangle titulo = new Rectangle(p.x, p.y + 16, p.width, 38);
+        Rectangle subtitulo = new Rectangle(p.x, p.y + 56, p.width, 18);
+
+        // Cada rótulo ganha uma faixa própria ACIMA do seu grupo. Isso não é
+        // capricho de posição: o botão é pintado depois do rótulo, e o
+        // preenchimento dele tapava o texto — o rótulo sumia atrás da caixa.
+        int y = p.y + 92;
+
+        Rectangle rotBorda = new Rectangle(x, y, w, hRot);
+        int yBorda = y + hRot + 6;
+        int wBorda = (w - gap) / 2;
+        rs.add(new Rectangle(x, yBorda, wBorda, h));
+        alvos.add(Alvo.BORDA_MATA);
+        rs.add(new Rectangle(x + wBorda + gap, yBorda, wBorda, h));
+        alvos.add(Alvo.BORDA_WRAP);
+
+        y = yBorda + h + 18;
+        Rectangle rotDif = new Rectangle(x, y, w, hRot);
+        int yDif = y + hRot + 6;
+        int wDif = (w - gap * 2) / 3;
+        for (int i = 0; i < 3; i++) {
+            rs.add(new Rectangle(x + i * (wDif + gap), yDif, wDif, h));
+            alvos.add(i == 0 ? Alvo.FACIL : i == 1 ? Alvo.MEDIO : Alvo.DIFICIL);
+        }
+
+        int yAcao = yDif + h + 24;
+        int wAcao = (w - gap) / 2;
+        rs.add(new Rectangle(x, yAcao, wAcao, h));
+        alvos.add(Alvo.COMECAR);
+        rs.add(new Rectangle(x + wAcao + gap, yAcao, wAcao, h));
+        alvos.add(Alvo.TROCAR_SKIN);
+
+        int yRec = yAcao + h + 12;
+        rs.add(new Rectangle(x, yRec, w, h));
+        alvos.add(Alvo.RECOMEÇAR);
+
+        Rectangle dica = new Rectangle(x, p.y + p.height - 30, w, 16);
+
+        // clamp: nada pode sair do painel, aconteca o que acontecer na conta
+        for (int i = 0; i < rs.size(); i++) {
+            rs.set(i, dentroDoPainel(rs.get(i), p));
+        }
+        return new Menu(p, alvos, rs, dentroDoPainel(titulo, p),
+                dentroDoPainel(subtitulo, p), dentroDoPainel(rotBorda, p),
+                dentroDoPainel(rotDif, p), dentroDoPainel(dica, p));
+    }
+
+    /**
+     * Puxa um retângulo para dentro do painel.
+     *
+     * <p>Vale para os botões e para os rótulos: a janela pode ser menor do que
+     * o menu pede, e um texto fora do painel some sem nenhum aviso.</p>
+     */
+    private static Rectangle dentroDoPainel(Rectangle r, Rectangle p) {
+        int largura = Math.max(24, Math.min(r.width, p.width - 32));
+        int altura = Math.max(14, Math.min(r.height, p.height - 32));
+        int x = Math.max(p.x + 8, Math.min(r.x, p.x + p.width - 8 - largura));
+        int y = Math.max(p.y + 8, Math.min(r.y, p.y + p.height - 8 - altura));
+        return new Rectangle(x, y, largura, altura);
     }
 }

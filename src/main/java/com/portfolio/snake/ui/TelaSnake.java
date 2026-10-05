@@ -12,10 +12,14 @@ import com.portfolio.snake.skin.RegistroDeSkin;
 import com.portfolio.snake.skin.Skin;
 
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionAdapter;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.JFrame;
@@ -101,7 +105,7 @@ public final class TelaSnake extends JFrame {
         this.jogo = jogo;
         this.layout = layout;
         this.skin = RegistroDeSkin.carregar();
-        this.desenho = new DesenhoJogo(layout, skin);
+        this.desenho = novoDesenho();
         this.recordeBatido = false;
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -139,6 +143,28 @@ public final class TelaSnake extends JFrame {
         Painel() {
             setBackground(DesenhoJogo.FUNDO);
             setPreferredSize(new Dimension(layout.getLarguraJanela(), layout.getAlturaJanela()));
+            // O mouse é tratado no painel, não na JFrame: as coordenadas do evento
+            // precisam ser as do painel, e acertar a origem na mão erra o clique
+            // quando a janela é movida ou o painel não ocupa a janela inteira.
+            addMouseListener(new MouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent e) {
+                    clicar(e.getX(), e.getY());
+                }
+            });
+            addMouseMotionListener(new MouseMotionAdapter() {
+                @Override
+                public void mouseMoved(MouseEvent e) {
+                    passarMouse(e.getX(), e.getY());
+                }
+
+                @Override
+                public void mouseDragged(MouseEvent e) {
+                    // arrastar sem pressionar não é passar o mouse; sem isto o
+                    // botão ficaria destacado enquanto o jogador arrasta a cobra
+                    passarMouse(e.getX(), e.getY());
+                }
+            });
         }
 
         @Override
@@ -151,6 +177,69 @@ public final class TelaSnake extends JFrame {
                 g2.dispose();
             }
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Mouse
+    // ------------------------------------------------------------------
+
+    /**
+     * O mouse passou por cima de algum botão.
+     *
+     * <p>Repinta só quando o destaque mudou de botão. Sem isso, cada pixel de
+     * movimento dentro do mesmo botão dispara uma repintura — o efeito é invisível
+     * e o custo é a tela inteira redesenhada 60 vezes por segundo.</p>
+     */
+    private void passarMouse(int x, int y) {
+        if (desenho.getBotaos().moverPara(x, y)) {
+            repaint();
+        }
+        // O cursor só muda entre "sobre um botão" e fora, e não a cada pixel
+        boolean sobre = desenho.getBotaos().sob(x, y) != null;
+        setCursor(Cursor.getPredefinedCursor(
+                sobre ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+    }
+
+    /** Um clique no painel: aciona o botão debaixo dele, se houver. */
+    private void clicar(int x, int y) {
+        if (desenho.getBotaos().acionar(x, y)) {
+            repaint();
+        }
+    }
+
+    /**
+     * O contrato que o menu usa para falar com a janela.
+     *
+     * <p>É uma instância anônima e não um {@code this}, para o desenho não
+     * conhecer a tela e continuar testável sem display.</p>
+     */
+    private AcoesMenu acoesMenu() {
+        return new AcoesMenu() {
+            @Override
+            public void escolher(Campo.Borda borda, JogoSnake.Dificuldade dif) {
+                montarPartida(borda, dif);
+            }
+
+            @Override
+            public void comecar() {
+                comecarPartida();
+            }
+
+            @Override
+            public void trocarSkin() {
+                TelaSnake.this.trocarSkin();
+            }
+
+            @Override
+            public void recomecar() {
+                // mesmo corpo do atalho R: jogo.reiniciar() mais o selo de
+                // recorde. Escrever reiniciar() aqui criaria um segundo jeito de
+                // recomeçar, e o botão e a tecla divergiriam.
+                jogo.reiniciar();
+                recordeBatido = false;
+                repaint();
+            }
+        };
     }
 
     // ------------------------------------------------------------------
@@ -301,14 +390,49 @@ public final class TelaSnake extends JFrame {
      */
     private void trocarSkin() {
         skin = CatalogoSkins.seguinte(skin);
-        desenho = new DesenhoJogo(layout, skin);
+        desenho = novoDesenho();
         RegistroDeSkin.salvar(skin);
         repaint();
+    }
+
+    /**
+     * O único lugar do código que constrói o pintor.
+     *
+     * <p>Existia um segundo ponto de construção aqui, na troca de skin, e ele
+     * esquecia as ações do menu: o pintor nascia com {@code NENHUMA} e todos os
+     * botões morriam a partir da primeira troca. Com a fábrica em um lugar só
+     * não há como montar um pintor e esquecer de ligar o menu.</p>
+     */
+    private DesenhoJogo novoDesenho() {
+        return new DesenhoJogo(layout, skin, acoesMenu());
     }
 
     /** A skin em uso, para o teste e para quem quiser mostrar. */
     public Skin getSkin() {
         return skin;
+    }
+
+    /**
+     * A partida em uso.
+     *
+     * <p>Sem visibilidade pública de propósito: existe para o teste desta
+     * classe, que precisa ver o estado e a identidade da partida para afirmar
+     * que escolher opção não começou o jogo e que tecla nenhuma troca a
+     * partida no meio da corrida.</p>
+     */
+    JogoSnake getJogo() {
+        return jogo;
+    }
+
+    /**
+     * O pintor em uso.
+     *
+     * <p>Só para o teste: os botões do menu só existem depois que um quadro é
+     * pintado, e o teste precisa pintar para poder clicar de verdade, em vez de
+     * chamar a ação e chamar isso de clique.</p>
+     */
+    DesenhoJogo getDesenho() {
+        return desenho;
     }
 
     private void alternarPausa() {
@@ -321,14 +445,49 @@ public final class TelaSnake extends JFrame {
         repaint();
     }
 
-    /** Aplica a escolha de briefing e começa a partida. */
+    /**
+     * Aplica a escolha de briefing: monta a partida com a borda e a
+     * dificuldade pedidas, e <b>deixa no menu</b>.
+     *
+     * <p>Voltar ao menu é o que permite escolher as duas coisas antes de
+     * começar. Aqui só aparece um botão por vez, e a partida mora no mesmo
+     * lugar da escolha — se escolher dificuldade já acionar a partida, não
+     * sobra nenhuma escolha para fazer: a dificuldade vem junto do botão que
+     * tocou e o menu some.</p>
+     */
     public void aplicarEscolha(int codigo) {
-        Campo.Borda borda = codigo == KeyEvent.VK_2 ? Campo.Borda.WRAP : Campo.Borda.MORRE;
-        JogoSnake.Dificuldade dif = codigo == KeyEvent.VK_3 ? JogoSnake.Dificuldade.FACIL
-                : codigo == KeyEvent.VK_5 ? JogoSnake.Dificuldade.DIFICIL
-                        : JogoSnake.Dificuldade.MEDIO;
-        reiniciarCom(borda, dif);
-        repaint();
+        if (!jogo.noInicio()) {
+            // Digitando 3 no meio da corrida para reiniciar do zero e perda de
+            // progresso por uma tecla que o jogador nem associou a reiniciar.
+            // Fora do menu a tecla nao tem o que escolher, entao nao faz nada.
+            return;
+        }
+        // Cada tecla mexe em UMA coisa. As duas opcoes sao independentes, e
+        // decidir as duas a partir do mesmo codigo — como fazia antes — fazia a
+        // escolha de borda voltar a dificuldade para o medio, apagando o que o
+        // jogador ja tinha escolhido. E o mesmo cuidado do botao em acaoDe.
+        Campo.Borda borda = jogo.getCampo().getBorda();
+        JogoSnake.Dificuldade dif = jogo.getDificuldade();
+        switch (codigo) {
+            case KeyEvent.VK_1:
+                borda = Campo.Borda.MORRE;
+                break;
+            case KeyEvent.VK_2:
+                borda = Campo.Borda.WRAP;
+                break;
+            case KeyEvent.VK_3:
+                dif = JogoSnake.Dificuldade.FACIL;
+                break;
+            case KeyEvent.VK_4:
+                dif = JogoSnake.Dificuldade.MEDIO;
+                break;
+            case KeyEvent.VK_5:
+                dif = JogoSnake.Dificuldade.DIFICIL;
+                break;
+            default:
+                return;
+        }
+        montarPartida(borda, dif);
     }
 
     /** Começa a partida como ela foi montada. */
@@ -338,12 +497,20 @@ public final class TelaSnake extends JFrame {
         repaint();
     }
 
-    /** Troca a regra da borda e a dificuldade, recomeçando. */
-    private void reiniciarCom(Campo.Borda borda, JogoSnake.Dificuldade dif) {
+    /**
+     * Troca a regra da borda e a dificuldade, e volta para o menu.
+     *
+     * <p>Monta a partida e não a começa. Esta é a diferença entre escolher e
+     * começar, e é um método só para os dois não voltarem a se misturar.</p>
+     */
+    private void montarPartida(Campo.Borda borda, JogoSnake.Dificuldade dif) {
+        // a partida nova nasce parada; se o relógio continuar correndo ele
+        // passaria a marcar contra um jogo em pausa
+        pararRelogio();
         Campo c = new Campo(layout.getColunas(), layout.getLinhas(), borda);
         this.jogo = new JogoSnake(c, dif, System.nanoTime());
         this.recordeBatido = false;
-        comecarPartida();
+        repaint();
     }
 
     // ------------------------------------------------------------------

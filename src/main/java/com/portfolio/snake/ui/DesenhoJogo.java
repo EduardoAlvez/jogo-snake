@@ -57,6 +57,8 @@ public final class DesenhoJogo {
     private final LayoutSnake layout;
     private final Skin skin;
     private final SkinSprites sprites;
+    private final AcoesMenu acoes;
+    private final Botaos botoes = new Botaos();
 
     /** Desenha com a skin padrão. É o que a maioria dos testes quer. */
     public DesenhoJogo(LayoutSnake layout) {
@@ -72,8 +74,20 @@ public final class DesenhoJogo {
      * o objeto não guarda nada.
      */
     public DesenhoJogo(LayoutSnake layout, Skin skin) {
+        this(layout, skin, AcoesMenu.NENHUMA);
+    }
+
+    /**
+     * Desenha com a skin escolhida e o menu ligado à janela.
+     *
+     * <p>As ações entram pelo contrato {@link AcoesMenu}, e não pela
+     * {@code TelaSnake}: um pintor que guarda a janela não é testável sem display.
+     * A maioria dos testes passa {@link AcoesMenu#NENHUMA} e continua sem clique nenhum.
+     */
+    public DesenhoJogo(LayoutSnake layout, Skin skin, AcoesMenu acoes) {
         this.layout = java.util.Objects.requireNonNull(layout, "layout");
         this.skin = java.util.Objects.requireNonNull(skin, "skin");
+        this.acoes = acoes == null ? AcoesMenu.NENHUMA : acoes;
         // Carrega uma vez, na construção. Desenhar roda a 60Hz e abrir 14 PNGs por
         // quadro é o tipo de lentidão que só apareceria com o jogo rodando.
         this.sprites = SkinSprites.carregar(skin.getId());
@@ -96,6 +110,18 @@ public final class DesenhoJogo {
         return skin;
     }
 
+    /**
+     * Os botões do menu, para a janela tratar o mouse.
+     *
+     * <p>O registro vive no pintor porque quem recria os botões é a pintura. É o
+     * mesmo desenho do Pong: a lista é efêmera e só o highlight sobrevive.
+     *
+     * @return o registro, nunca {@code null}
+     */
+    public Botaos getBotaos() {
+        return botoes;
+    }
+
     /** O layout usado por este desenho. */
     public LayoutSnake getLayout() {
         return layout;
@@ -113,6 +139,11 @@ public final class DesenhoJogo {
                 RenderingHints.VALUE_ANTIALIAS_ON);
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
                 RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        // O registro de botões é por quadro, não da sessão. Só o menu tem botão,
+        // mas sem esta limpeza os retângulos do briefing continuam vivos depois
+        // que a partida começa, e um clique no canto inferior durante a pausa
+        // voltaria para o menu por baixo da tela de pausa.
+        botoes.limpar();
         try {
             desenharFundo(g2);
             desenharTabuleiro(g2);
@@ -126,8 +157,8 @@ public final class DesenhoJogo {
 
             switch (jogo.getEstado()) {
                 case PAUSADO:
-                    if (jogo.getPontos() == 0 && jogo.getPassos() == 0) {
-                        desenharBriefing(g2);
+                    if (jogo.noInicio()) {
+                        desenharBriefing(g2, jogo);
                     } else {
                         desenharPausa(g2);
                     }
@@ -392,28 +423,130 @@ public final class DesenhoJogo {
     // Sobreposições
     // ------------------------------------------------------------------
 
-    private void desenharBriefing(Graphics2D g2) {
-        Rectangle p = layout.painel(520, 340);
-        painelFundo(g2, p);
-        centralizar(g2, "SNAKE", new Rectangle(p.x, p.y + 22, p.width, 40),
-                fonte(30, Font.BOLD), TEXTO);
-        centralizar(g2, "Setas ou W A S D para virar", new Rectangle(p.x, p.y + 66, p.width, 20),
+    /**
+     * O menu: borda, dificuldade, começar, trocar skin e recomeçar, como botões.
+     *
+     * <p>As posições vêm de {@link LayoutSnake#menu()}, nunca daqui. A regra do
+     * projeto é que nada se calcula dentro da pintura, e ela existe por causa de um
+     * defeito do Pong em que um badge saía do campo e nenhum teste via, justamente
+     * porque a conta estava na tela.</p>
+     *
+     * <p>O texto que era do briefing virou rótulo de botão, e o que sobrou — as
+     * teclas — continua escrito embaixo. O botão é o caminho do mouse, a tecla é o
+     * caminho rápido, e nenhum dos dois foi removido.</p>
+     *
+     * @param jogo a partida, para saber o que já está escolhido
+     */
+    private void desenharBriefing(Graphics2D g2, JogoSnake jogo) {
+        LayoutSnake.Menu menu = layout.menu();
+        painelFundo(g2, menu.painel);
+
+        centralizar(g2, "SNAKE", menu.titulo, fonte(30, Font.BOLD), TEXTO);
+        centralizar(g2, "Setas ou W A S D para virar", menu.subtitulo,
                 fonte(13, Font.PLAIN), TEXTO_FRACO);
 
-        int y = p.y + 108;
-        centralizar(g2, "BORDA      [1] mata      [2] dá a volta",
-                new Rectangle(p.x, y, p.width, 22), fonte(14, Font.PLAIN), TEXTO);
-        y += 30;
-        centralizar(g2, "DIFICULDADE      [3] fácil      [4] médio      [5] difícil",
-                new Rectangle(p.x, y, p.width, 22), fonte(14, Font.PLAIN), TEXTO);
-        y += 40;
-        centralizar(g2, "Começa no médio, com a parede matando. [Enter] para jogar",
-                new Rectangle(p.x, y, p.width, 20), fonte(12, Font.PLAIN), TEXTO_FRACO);
-        y += 26;
-        // a skin é lida do pintor, e não perguntada à tela: quem está pintando já
-        // sabe, e perguntar criaria dois lugares gratuitos discordando
-        centralizar(g2, "Skin " + skin.getNome() + "   —   [N] troca",
-                new Rectangle(p.x, y, p.width, 20), fonte(12, Font.PLAIN), TEXTO_FRACO);
+        // a lista de botões já foi limpa no início de pintar(); o que
+        // sobrevive entre quadros é só o highlight, em Botaos
+        centralizar(g2, "BORDA", menu.rotuloBorda, fonte(11, Font.BOLD), TEXTO_FRACO);
+        botao(g2, menu, LayoutSnake.Alvo.BORDA_MATA, "Parede mata",
+                jogo.getCampo().getBorda() == Campo.Borda.MORRE, jogo);
+        botao(g2, menu, LayoutSnake.Alvo.BORDA_WRAP, "Dá a volta",
+                jogo.getCampo().getBorda() == Campo.Borda.WRAP, jogo);
+
+        centralizar(g2, "DIFICULDADE", menu.rotuloDificuldade,
+                fonte(11, Font.BOLD), TEXTO_FRACO);
+        botao(g2, menu, LayoutSnake.Alvo.FACIL, "Fácil",
+                jogo.getDificuldade() == JogoSnake.Dificuldade.FACIL, jogo);
+        botao(g2, menu, LayoutSnake.Alvo.MEDIO, "Médio",
+                jogo.getDificuldade() == JogoSnake.Dificuldade.MEDIO, jogo);
+        botao(g2, menu, LayoutSnake.Alvo.DIFICIL, "Difícil",
+                jogo.getDificuldade() == JogoSnake.Dificuldade.DIFICIL, jogo);
+
+        botao(g2, menu, LayoutSnake.Alvo.COMECAR, "Começar  [Enter]", false, jogo);
+        botao(g2, menu, LayoutSnake.Alvo.TROCAR_SKIN,
+                "Skin: " + skin.getNome() + "  [N]", false, jogo);
+        botao(g2, menu, LayoutSnake.Alvo.RECOMEÇAR, "Recomeçar  [R]", false, jogo);
+
+        centralizar(g2, "[1] mata   [2] dá a volta   [3-5] dificuldade",
+                menu.dica, fonte(11, Font.PLAIN), TEXTO_FRACO);
+    }
+
+    /**
+     * Desenha um botão do menu, já o registrando no highlight.
+     *
+     * <p>O botão é criado aqui e não antes: é a pintura que reconstrói a lista, e
+     * por isso a identidade do highlight é a geometria. Um botão novo a cada quadro
+     * com o mesmo retângulo reencontra o destaque do mouse.</p>
+     *
+     * @param selecionado se o botão mostra a opção em vigor
+     */
+    private void botao(Graphics2D g2, LayoutSnake.Menu menu, LayoutSnake.Alvo alvo,
+            String texto, boolean selecionado, JogoSnake jogo) {
+        Rectangle r = menu.retangulo(alvo);
+        if (r == null) {
+            return;
+        }
+        Runnable acao = acaoDe(alvo, jogo);
+        Botao b = botoes.adicionar(new Botao(texto, r.x, r.y, r.width, r.height, acao));
+        b.selecionado = selecionado;
+        desenharBotao(g2, b);
+    }
+
+    /**
+     * Liga um alvo do menu à ação do contrato.
+     *
+     * <p>Borda e dificuldade saem da <em>partida</em>, e não de campos guardados
+     * aqui. Um campo mutável aqui teria de ser acertado em dois lugares — no
+     * teclado e no clique — e esquecer um deles faria o botão "mata" trocar a
+     * dificuldade junto, sem o jogador pedir. Lendo da partida, o que está em
+     * vigor é sempre o que o jogador está vendo.</p>
+     */
+    private Runnable acaoDe(LayoutSnake.Alvo alvo, JogoSnake jogo) {
+        Campo.Borda borda = jogo.getCampo().getBorda();
+        JogoSnake.Dificuldade dif = jogo.getDificuldade();
+        switch (alvo) {
+            case BORDA_MATA:
+                return () -> acoes.escolher(Campo.Borda.MORRE, dif);
+            case BORDA_WRAP:
+                return () -> acoes.escolher(Campo.Borda.WRAP, dif);
+            case FACIL:
+                return () -> acoes.escolher(borda, JogoSnake.Dificuldade.FACIL);
+            case MEDIO:
+                return () -> acoes.escolher(borda, JogoSnake.Dificuldade.MEDIO);
+            case DIFICIL:
+                return () -> acoes.escolher(borda, JogoSnake.Dificuldade.DIFICIL);
+            case COMECAR:
+                return acoes::comecar;
+            case TROCAR_SKIN:
+                return acoes::trocarSkin;
+            case RECOMEÇAR:
+                return acoes::recomecar;
+            default:
+                return () -> { };
+        }
+    }
+
+    /**
+     * O desenho em si: três estados, e o dourado do projeto é o selecionado.
+     *
+     * <p>Sem este método o botão não teria hover: o retângulo seria desenhado
+     * igual em todos os estados, e o jogador não teria como saber onde o mouse
+     * está — nem onde vai clicar.</p>
+     */
+    private void desenharBotao(Graphics2D g2, Botao b) {
+        boolean hover = botoes.temHighlight(b);
+        Color fundo = b.selecionado ? DESTAQUE
+                : (hover ? new Color(255, 255, 255, 60) : new Color(255, 255, 255, 26));
+        g2.setColor(fundo);
+        g2.fillRoundRect(b.x, b.y, b.w, b.h, 10, 10);
+        g2.setStroke(new BasicStroke(1.2f));
+        g2.setColor(b.selecionado ? DESTAQUE : new Color(255, 255, 255, 100));
+        g2.drawRoundRect(b.x, b.y, b.w, b.h, 10, 10);
+
+        g2.setFont(fonte(13, Font.BOLD));
+        g2.setColor(b.selecionado ? new Color(0x161C28) : TEXTO);
+        int larg = g2.getFontMetrics().stringWidth(b.texto);
+        g2.drawString(b.texto, b.x + (b.w - larg) / 2, b.y + b.h / 2 + 5);
     }
 
     private void desenharPausa(Graphics2D g2) {

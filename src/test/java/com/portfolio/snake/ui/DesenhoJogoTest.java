@@ -23,6 +23,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.After;
 import org.junit.Before;
@@ -48,6 +51,271 @@ import org.junit.Test;
  * e invisível para o jogador se a janela não repintasse rápido o bastante.
  */
 public class DesenhoJogoTest {
+
+    // ------------------------------------------------------------------
+    // O menu: botoes de verdade
+    // ------------------------------------------------------------------
+
+    /**
+     * O menu pinta os oito botoes, e cada um com fundo proprio.
+     *
+     * <p>A comparacao e com o fundo do painel, e nao com uma cor absoluta: o botao
+     * e desenhado com um alfa baixo sobre o painel, entao o pixel depende do que tem
+     * atras. Um teste que exigisse branco quebraria no dia em que o fundo do painel
+     * mudasse, sem nenhum defeito — e esse e o tipo de teste que se acostuma a ser
+     * "corrigido" em vez de serve de alerta.</p>
+     *
+     * <p>Se o botao sumisse e sobrasse so o texto, o miolo do retangulo voltaria a
+     * ser igual ao fundo e este teste cairia. Por isso a leitura e no miolo, aonde
+     * nao ha texto nem borda.</p>
+     */
+    @Test
+    public void oMenuPintaOsOitoBotoes() {
+        JogoSnake jogo = new JogoSnake(campo(), JogoSnake.Dificuldade.MEDIO, SEMENTE);
+        BufferedImage img = pintar(jogo, false);
+        Rectangle p = layout.menu().painel;
+
+        int fundo = luminancia(img, p.x + 3, p.y + 3);
+        List<String> semFundo = new ArrayList<>();
+        for (Rectangle r : layout.menu().retangulos) {
+            int dentro = luminancia(img, r.x + r.width / 2, r.y + r.height / 2);
+            // o painel tem 0.82 de alfa sobre o tabuleiro; na regiao do menu a arte
+            // de tras e o tabuleiro, entao a diferenca observada fica bem abaixo de
+            // 255. Qualquer numero positivo com folga ja prova que ha um retangulo.
+            if (Math.abs(dentro - fundo) < 3) {
+                semFundo.add(r.toString());
+            }
+        }
+        assertTrue("botoes sem fundo proprio: " + semFundo, semFundo.isEmpty());
+    }
+
+    /**
+     * O fundo do botao e translucido sobre o painel, entao ele clareia o que esta
+     * atras. O teste anterior prova que ha retangulo; este prova que o retangulo e
+     * o botao e nao um artefato da borda do painel.
+     */
+    @Test
+    public void oFundoDoBotaoClareiaSobreOPainel() {
+        JogoSnake jogo = new JogoSnake(campo(), JogoSnake.Dificuldade.MEDIO, SEMENTE);
+        BufferedImage img = pintar(jogo, false);
+
+        Rectangle r = layout.menu().retangulo(LayoutSnake.Alvo.COMECAR);
+        int dentro = luminancia(img, r.x + r.width / 2, r.y + r.height / 2);
+        Rectangle p = layout.menu().painel;
+        int foraDoBotao = luminancia(img, p.x + 3, p.y + 3);
+        assertTrue("o botao nao clareou o painel: " + dentro + " contra " + foraDoBotao,
+                dentro > foraDoBotao);
+    }
+
+    /** Soma dos tres canais. Um numero, e nao uma cor: so importa o quanto clareou. */
+    private static int luminancia(BufferedImage img, int x, int y) {
+        int rgb = img.getRGB(x, y);
+        return ((rgb >> 16) & 0xFF) + ((rgb >> 8) & 0xFF) + (rgb & 0xFF);
+    }
+
+    /**
+     * Passar o mouse no botao muda o que e pintado dentro dele.
+     *
+     * <p>Este teste nasceu de duas mutacoes que <b>nao</b> caíram. A primeira
+     * desligava o {@code fillRoundRect} do botao, e a segunda tirava o dourado do
+     * selecionado; as duas seguiam verdes. A razao e a mesma nos dois casos, e e
+     * instrutiva: o painel e desenhado com 0.82 de alfa <b>sobre o tabuleiro</b>,
+     * entao o fundo atras dos botoes tem as listras da grade. Qualquer teste que
+     * compare uma cor absoluta, ou uma cor contra outra cor do painel, mede a grade
+     * que aparece por baixo e nao o botao.</p>
+     *
+     * <p>A comparacao que nao depende do fundo e entre duas pintadas do
+     * <b>mesmo</b> quadro, mudando so o estado do mouse. A borda e o texto sao
+     * iguais nas duas, entao qualquer pixel diferente dentro do retangulo so pode
+     * ser o preenchimento. Com o {@code fill} desligado as duas imagens ficam
+     * identicas e o teste cai.</p>
+     */
+    @Test
+    public void oHoverMudaOBotaoPintado() {
+        JogoSnake jogo = new JogoSnake(campo(), JogoSnake.Dificuldade.MEDIO, SEMENTE);
+        BufferedImage semMouse = pintar(jogo, false);
+
+        Rectangle alvo = layout.menu().retangulo(LayoutSnake.Alvo.TROCAR_SKIN);
+        assertTrue("o ponteiro nao achou o botao",
+                desenho.getBotaos().moverPara(alvo.x + alvo.width / 2, alvo.y + alvo.height / 2));
+        BufferedImage comMouse = pintar(jogo, false);
+
+        // o miolo, sem a borda nem a faixa do texto
+        Rectangle miolo = new Rectangle(alvo.x + 8, alvo.y + 8, alvo.width - 16, alvo.height - 16);
+        int diferentes = 0;
+        for (int y = miolo.y; y < miolo.y + miolo.height; y++) {
+            for (int x = miolo.x; x < miolo.x + miolo.width; x++) {
+                if (semMouse.getRGB(x, y) != comMouse.getRGB(x, y)) {
+                    diferentes++;
+                }
+            }
+        }
+        assertTrue("o hover nao pintou nada: o preenchimento do botao sumiu",
+                diferentes > 0);
+    }
+
+    /**
+     * O botao da opcao em vigor tem o miolo <b>inteiro</b> dourado.
+     *
+     * <p>Este teste nasceu de uma mutacao que nao caiu: trocar a cor do
+     * preenchimento do selecionado por outra continuava verde, porque o contorno do
+     * botao ja era dourado e o teste anterior so exigia "algum pixel dourado na
+     * regiao". Exigir um pixel era medir o contorno, nao o botao.</p>
+     *
+     * <p>Por isso a exigencia e sobre o miolo, e sobre a maioria dele: o contorno
+     * tem poucos pixels e o texto ocupa uma faixa estreita, entao um retangulo
+     * dourado de verdade cobre quase toda a area. Sem o preenchimento dourado, o
+     * miolo fica com a cor translucida do fundo e a contagem despenca.</p>
+     */
+    @Test
+    public void oBotaoSelecionadoPreencheOMioloDeDourado() {
+        JogoSnake jogo = new JogoSnake(campo(), JogoSnake.Dificuldade.MEDIO, SEMENTE);
+        BufferedImage img = pintar(jogo, false);
+
+        Rectangle r = layout.menu().retangulo(LayoutSnake.Alvo.BORDA_MATA);
+        // miolo generoso: recorta o contorno e ainda sobra area de preenchimento
+        Rectangle miolo = new Rectangle(r.x + 8, r.y + 8, r.width - 16, r.height - 16);
+        int dourados = contarPixels(img, miolo, DesenhoJogo.DESTAQUE.getRGB(), 40);
+        int area = miolo.width * miolo.height;
+        assertTrue("o miolo do botao selecionado nao esta dourado: " + dourados + " de " + area,
+                dourados > area / 2);
+    }
+
+    /** O botao da opcao em vigor fica dourado: e o unico jeito de ver o que esta valendo. */
+    @Test
+    public void oBotaoDaOpcaoEmVigorFicaDourado() {
+        JogoSnake jogo = new JogoSnake(campo(), JogoSnake.Dificuldade.MEDIO, SEMENTE);
+        BufferedImage img = pintar(jogo, false);
+
+        assertTrue("nenhum botao dourado no menu",
+                existePixelProximo(img, layout.menu().retangulo(LayoutSnake.Alvo.BORDA_MATA),
+                        DesenhoJogo.DESTAQUE, 20));
+    }
+
+    @Test
+    public void trocarABordaMoveODouradoParaOOutroBotao() {
+        JogoSnake jogo = new JogoSnake(campo(), JogoSnake.Dificuldade.MEDIO, SEMENTE);
+        BufferedImage img = pintar(jogo, false);
+
+        // o mesmo codigo que o clique usa, e nao um caminho so de teste
+        for (LayoutSnake.Alvo alvo : new LayoutSnake.Alvo[] { LayoutSnake.Alvo.FACIL,
+                LayoutSnake.Alvo.MEDIO, LayoutSnake.Alvo.DIFICIL }) {
+            jogo = new JogoSnake(campo(), dificuldadeDe(alvo), SEMENTE);
+            BufferedImage agora = pintar(jogo, false);
+            assertTrue("o dourado nao foi para " + alvo,
+                    existePixelProximo(agora, layout.menu().retangulo(alvo),
+                            DesenhoJogo.DESTAQUE, 20));
+        }
+        // e o de borda oposta nao pode continuar dourado
+        assertTrue("o dourado ficou nos dois botoes de borda",
+                contarPixels(img, layout.menu().retangulo(LayoutSnake.Alvo.BORDA_WRAP),
+                        DesenhoJogo.DESTAQUE.getRGB(), 20) < contarPixels(img,
+                        layout.menu().retangulo(LayoutSnake.Alvo.BORDA_MATA),
+                        DesenhoJogo.DESTAQUE.getRGB(), 20));
+    }
+
+    private static JogoSnake.Dificuldade dificuldadeDe(LayoutSnake.Alvo alvo) {
+        switch (alvo) {
+            case FACIL:
+                return JogoSnake.Dificuldade.FACIL;
+            case DIFICIL:
+                return JogoSnake.Dificuldade.DIFICIL;
+            default:
+                return JogoSnake.Dificuldade.MEDIO;
+        }
+    }
+
+    /** Clicar no botao precisa falar com a janela, e a janela decide o que fazer. */
+    @Test
+    public void clicarNoBotaoChamaAAcaoCerta() {
+        AtomicInteger chamadas = new AtomicInteger();
+        List<LayoutSnake.Alvo> pedidos = new ArrayList<>();
+        AcoesMenu acoes = new AcoesMenu() {
+            @Override
+            public void escolher(Campo.Borda b, JogoSnake.Dificuldade d) {
+                pedidos.add(b == Campo.Borda.WRAP ? LayoutSnake.Alvo.BORDA_WRAP
+                        : LayoutSnake.Alvo.BORDA_MATA);
+                chamadas.incrementAndGet();
+            }
+
+            @Override
+            public void comecar() {
+                pedidos.add(LayoutSnake.Alvo.COMECAR);
+                chamadas.incrementAndGet();
+            }
+
+            @Override
+            public void trocarSkin() {
+                pedidos.add(LayoutSnake.Alvo.TROCAR_SKIN);
+                chamadas.incrementAndGet();
+            }
+        };
+        DesenhoJogo comMenu = new DesenhoJogo(layout, CatalogoSkins.padrao(), acoes);
+        JogoSnake jogo = new JogoSnake(campo(), JogoSnake.Dificuldade.MEDIO, SEMENTE);
+
+        // pinta para registrar os botoes, e so entao clica: o registro e criado pela
+        // pintura, como em qualquer quadro real
+        comMenu.pintar(g2De(), jogo, false);
+        Botaos registro = comMenu.getBotaos();
+        assertEquals(layout.menu().tamanho(), registro.tamanho());
+
+        Rectangle wrap = layout.menu().retangulo(LayoutSnake.Alvo.BORDA_WRAP);
+        assertTrue("o clique nao achou o botao",
+                registro.acionar(wrap.x + wrap.width / 2, wrap.y + wrap.height / 2));
+        Rectangle comecar = layout.menu().retangulo(LayoutSnake.Alvo.COMECAR);
+        registro.acionar(comecar.x + comecar.width / 2, comecar.y + comecar.height / 2);
+
+        assertEquals(2, chamadas.get());
+        assertEquals(LayoutSnake.Alvo.BORDA_WRAP, pedidos.get(0));
+        assertEquals(LayoutSnake.Alvo.COMECAR, pedidos.get(1));
+    }
+
+    /** Clicar fora de todo botao nao pode disparar nada: o painel fundo e clicavel. */
+    @Test
+    public void clicarForaDosBotoesNaoFazNada() {
+        AtomicInteger chamadas = new AtomicInteger();
+        AcoesMenu acoes = new AcoesMenu() {
+            @Override
+            public void comecar() {
+                chamadas.incrementAndGet();
+            }
+        };
+        DesenhoJogo comMenu = new DesenhoJogo(layout, CatalogoSkins.padrao(), acoes);
+        comMenu.pintar(g2De(), new JogoSnake(campo(), JogoSnake.Dificuldade.MEDIO, SEMENTE), false);
+
+        Rectangle p = layout.menu().painel;
+        assertFalse("o canto do painel disparou um botao", comMenu.getBotaos().acionar(p.x + 2, p.y + 2));
+        assertEquals(0, chamadas.get());
+    }
+
+    /** O atalho de teclado do botao tem de pedir a mesma coisa que o clique. */
+    @Test
+    public void cliqueEAtalhoPassamAMesmaEscolha() {
+        AtomicInteger porClique = new AtomicInteger();
+        AcoesMenu acoes = new AcoesMenu() {
+            @Override
+            public void escolher(Campo.Borda b, JogoSnake.Dificuldade d) {
+                porClique.incrementAndGet();
+            }
+        };
+        DesenhoJogo comMenu = new DesenhoJogo(layout, CatalogoSkins.padrao(), acoes);
+        comMenu.pintar(g2De(), new JogoSnake(campo(), JogoSnake.Dificuldade.MEDIO, SEMENTE), false);
+
+        Rectangle wrap = layout.menu().retangulo(LayoutSnake.Alvo.BORDA_WRAP);
+        comMenu.getBotaos().acionar(wrap.x + 2, wrap.y + 2);
+
+        // atalho: aplicarEscolha(VK_2) e o que a tecla [2] chama na tela
+        new TelaSnake(new JogoSnake(campo(), JogoSnake.Dificuldade.MEDIO, SEMENTE),
+                layout).aplicarEscolha(java.awt.event.KeyEvent.VK_2);
+
+        assertEquals("o botao e a tecla escolheram coisas diferentes", 1, porClique.get());
+    }
+
+    /** Um destino de desenho descartável, do mesmo tamanho da janela. */
+    private Graphics2D g2De() {
+        return new BufferedImage(layout.getLarguraJanela(), layout.getAlturaJanela(),
+                BufferedImage.TYPE_INT_RGB).createGraphics();
+    }
 
     private static final long SEMENTE = 42L;
     private static final String ARQUIVO_RECORDE = ".jogo-snake-recorde";
@@ -215,11 +483,11 @@ public class DesenhoJogoTest {
         JogoSnake jogo = new JogoSnake(campo(), JogoSnake.Dificuldade.MEDIO, SEMENTE);
         // sem iniciar(): o estado é PAUSADO com zero pontos, o briefing
         BufferedImage img = pintar(jogo, false);
-        Rectangle painel = layout.painel(520, 340);
+        Rectangle painel = layout.menu().painel;
         Rectangle tabuleiro = layout.tabuleiro();
 
         assertTrue("o painel do briefing não cobre o tabuleiro", painel.intersects(tabuleiro));
-        assertTrue("o briefing ficou sem texto",
+        assertTrue("o menu ficou sem texto",
                 existePixelProximo(img, painel, DesenhoJogo.TEXTO, 40));
     }
 

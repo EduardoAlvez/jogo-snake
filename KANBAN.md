@@ -698,14 +698,97 @@ invisível.
 
 | | Pong | Snake |
 |---|---|---|
-| Testes | 180 | **163** |
-| Testes em `ui` | 27 (só o `BotaosTest`) | **50** (24 de layout + 19 de pixels + 7 do ícone) |
+| Testes | 180 | **221** |
+| Testes em `ui` | 27 (só o `BotaosTest`) | **108** (24 de layout + 28 de pixels + 7 do ícone + 25 de botão + 13 de menu + 7 da janela) |
 | Classes de `core` sem teste | — | `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder`, `RegistroDeRecordes` |
-| Bugs reais achados por teste | 2 (o hover e o prêmio congelado, ambos na 1.0.1) | **5** (4 por teste de regra, 1 por teste de pixel) |
-| Bugs achados por validação visual | 0 | **1** (a cabeça e o rabo para trás, bug 6) |
+| Bugs reais achados por teste | 2 (o hover e o prêmio congelado, ambos na 1.0.1) | **9** (4 por teste de regra, 1 por teste de pixel, 4 pelos testes do menu) |
+| Bugs achados por validação visual | 0 | **2** (a cabeça e o rabo para trás, bug 6; e os rótulos do menu debaixo dos botões) |
 | Linha de comando | — | `/c/Users/dudu2/.m2/wrapper/dists/apache-maven-3.9.11/d6d3cbd4012d4c1d840e93277aca316c/bin/mvn` (o `mvn` não está no `PATH`) |
 
-A coluna do Pong é a da `v1.0.1`. A do Snake é depois do item 6, e **163 testes não
-são 163 de cobertura**: `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder` e
+A coluna do Pong é a da `v1.0.1`. A do Snake é depois do item 6, e **221 testes não
+são 221 de cobertura**: `Campo`, `Direcao`, `Celula`, `Forma`, `Comida`, `Poder` e
 `RegistroDeRecordes` continuam sem teste próprio, e são classes cujas regras o
 `JogoSnake` só usa por inteiro.
+
+## O menu com botões, e os 4 bugs que ele escondeu
+
+O briefing era texto: as opções de borda e dificuldade eram linhas soltas, sem doc,
+e o jogador escolhia com `[1]`–`[5]`. Viraram **8 botões** clicaveis, no padrao do
+`Botao`/`Botaos` do Pong: borda (2), dificuldade (3), começar, trocar skin e
+recomeçar. Visual dark com destaque dourado, e os atalhos antigos continuam.
+
+O que o menu **não** fez foi ficar quieto. Os 4 defeitos abaixo sairam todos
+da mesma confusão: "escolher" e "começar" eram a mesma operação.
+
+### Bug 7: escolher a dificuldade ja começava a partida
+
+`aplicarEscolha` e os botões chamavam `reiniciarCom`, que terminava em
+`comecarPartida`. Escolher qualquer coisa sumia com o menu — e não sobrava
+escolha nenhuma a fazer.
+
+Corrigido separando os dois conceitos: `montarPartida` deixa o jogo no menu,
+`comecarPartida` so começa. Agora a opção escolhida fica em dourado e o menu
+continua em pe.
+
+### Bug 8: a tecla apagava a outra escolha
+
+`aplicarEscolha` decidia borda **e** dificuldade a partir do mesmo codigo: `[2]`
+escolhia wrap e voltava a dificuldade para médio; `[3]` escolhia fácil e forçava
+"parede mata". Era a complaint do autor, palavra por palavra: não dava para escolher
+as duas coisas.
+
+Cada tecla passou a mexer em **um** campo so, lendo o outro da partida atual — a
+mesma regra que `acaoDe` ja usava para os botões. O teclado simplesmente nunca
+teve essa regra.
+
+### Bug 9: numero no meio do jogo reiniciava a corrida
+
+`[1]`–`[5]` trocavam a partida inteira a qualquer momento, zerando o progresso
+por uma tecla que o jogador nao associou a reiniciar. Agora so valem no menu
+(`JogoSnake.noInicio()`). Para voltar ao menu durante o jogo, `[R]`.
+
+`noInicio()` virou metodo do nucleo de proposito: o desenho decide entre menu e
+tabuleiro, e a janela decide se as teclas valem alguma coisa. Duas copias da mesma
+condição e uma delas esquecida num dia dariam o menu em cima de uma partida.
+
+### Bug 10: a troca de skin calava os botões
+
+`trocarSkin` recriava o pintor com o construtor de 2 argumentos, que nasce com
+`AcoesMenu.NENHUMA`: depois do primeiro `[N]`, **todo** o menu ficava morto. O
+construtor de 3 argumentos existe justamente para ligar o menu a janela, e foi
+esquecido nesse ponto.
+
+Corrigido reduzindo a construção do pintor a uma fabrica so
+(`novoDesenho`): não ha mais onde esquecer as ações.
+
+De passagem, o registro de botões passou a ser limpo no começo de cada quadro.
+Antes os retangulos do briefing continuavam vivos depois que a partida começava, e
+um clique no canto inferior durante a pausa voltava para o menu por baixo da tela
+de pausa.
+
+### O teste que passava verde e não provava nada
+
+`DesenhoJogoTest` tinha um `cliqueEAtalhoPassamAMesmaEscolha` que **nao testava o
+clique**: ele chamava a acao direto e depois criava uma `TelaSnake` para contar que
+a tecla tambem mudeava o estado. O botao podia estar morto que o teste passava — e
+passava. Por isso 210 testes verdes nao pegaram nenhum dos 4 bugs.
+
+`TelaSnakeTest` (7 testes) entra no lugar certo: paint, e entao **clique de
+verdade** no registro de botões. Os 4 bugs foram reintroduzidos um a um para
+confirmar que cada teste cai — e caem.
+
+### Os rotulos ficavam debaixo dos botoes
+
+Achado pela validação visual do autor. Os rotulos `BORDA` e `DIFICULDADE` eram
+desenhados em `painel.y + 92` e `+140`, com os botoes começando em `+96` e `+144`:
+o rotulo entrava **dentro** da faixa do botao, e como o botao e pintado depois, o
+preenchimento tapava o texto.
+
+Cada rotulo ganhou faixa propria **acima** do seu grupo, e as posições do texto
+saíram do desenho para o `LayoutSnake` — `titulo`, `subtitulo`, `rotuloBorda`,
+`rotuloDificuldade` e `dica` agora sao geometria testavel, como os badges do Pong.
+`rotuloEm()` com numeros magicos foi embora. `MenuSnakeTest` ganhou 4 testes que
+proibem um rotulo de intersectar um botao.
+
+**Verificado por execução**: 221 testes verdes, `BUILD SUCCESS`,
+`target/jogo-snake.exe` gerado.

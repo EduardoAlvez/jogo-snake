@@ -373,6 +373,20 @@ public final class JogoSnake {
         }
     }
 
+    /**
+     * A partida ainda não começou: é o estado em que o menu aparece.
+     *
+     * <p>Existe como método porque duas coisas precisam da mesma resposta — o
+     * desenho decide entre menu e tabuleiro, e a janela decide se as teclas de
+     * escolha valem alguma coisa. Se cada uma escrever a condição, basta uma
+     * delas ser esquecida num dia para o menu reaparecer em cima de uma
+     * partida em andamento, ou para as teclas reiniciarem o jogo no meio da
+     * corrida.</p>
+     */
+    public boolean noInicio() {
+        return estado == Estado.PAUSADO && pontos == 0 && passos == 0;
+    }
+
     /** Pausa a partida, se ela estiver correndo. */
     public void pausar() {
         if (estado == Estado.JOGANDO) {
